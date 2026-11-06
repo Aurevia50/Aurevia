@@ -5,6 +5,8 @@ import './globals.css';
 import './experience.css';
 import './aurevia-loading.css';
 import './theme.css';
+import 'swiper/css';
+import 'swiper/css/effect-fade';
 import StartupShell from '@/components/StartupShell';
 import ViewportZoomPolicy from '@/components/ViewportZoomPolicy';
 import Providers from '@/components/Providers';
