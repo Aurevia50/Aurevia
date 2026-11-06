@@ -1137,8 +1137,8 @@ for(const viewport of viewports){
 						await expect(page.locator('.user-dashboard-panel-heading h2').first()).toHaveCSS('color',theme==='forest-green'?'rgb(243, 244, 237)':'rgb(23, 37, 29)');
 						const realAccount=await page.locator('.user-mode-pill').evaluate(element=>element.classList.contains('real'));
 						const expectedModeDot=realAccount
-							?(theme==='forest-green'?'rgb(52, 211, 153)':'rgb(22, 134, 91)')
-							:(theme==='forest-green'?'rgb(197, 164, 95)':'rgb(156, 121, 69)');
+							?(theme==='forest-green'?'rgb(52, 211, 153)':'rgb(20, 115, 78)')
+							:(theme==='forest-green'?'rgb(197, 164, 95)':'rgb(128, 95, 50)');
 						await expect(page.locator('.user-mode-pill i')).toHaveCSS('background-color',expectedModeDot);
 					}
 					await expectNoHorizontalOverflow(page);

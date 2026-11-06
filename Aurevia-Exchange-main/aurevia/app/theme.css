@@ -58,17 +58,17 @@ html[data-theme-name="premium-dashboard"]{
 	--theme-surface-elevated:#FAFBF8;
 	--theme-text:#17251D;
 	--theme-text-secondary:#647168;
-	--theme-text-muted:#77847B;
+	--theme-text-muted:#66736A;
 	--theme-border:rgba(23,37,29,.12);
 	--theme-divider:rgba(23,37,29,.09);
-	--theme-accent:#9C7945;
-	--theme-accent-hover:#805F32;
-	--theme-accent-soft:rgba(156,121,69,.10);
-	--theme-positive:#16865B;
-	--theme-negative:#C94D4D;
-	--theme-warning:#946B22;
-	--theme-info:#527887;
-	--theme-button:#9C7945;
+	--theme-accent:#805F32;
+	--theme-accent-hover:#6E512B;
+	--theme-accent-soft:rgba(128,95,50,.10);
+	--theme-positive:#14734E;
+	--theme-negative:#B63E3E;
+	--theme-warning:#875F18;
+	--theme-info:#496D7A;
+	--theme-button:#805F32;
 	--theme-button-text:#FFFFFF;
 	--theme-control:#FFFFFF;
 	--theme-focus:rgba(156,121,69,.45);
@@ -85,8 +85,8 @@ html[data-theme-name="premium-dashboard"]{
 	--theme-chart-4:#A65E52;
 	--theme-chart-5:#7D877C;
 	--theme-skeleton:rgba(23,37,29,.08);
-	--theme-disabled:#89938C;
-	--theme-selected:rgba(156,121,69,.12);
+	--theme-disabled:#66736A;
+	--theme-selected:rgba(128,95,50,.12);
 	--theme-shadow:0 12px 32px rgba(23,37,29,.07);
 	--theme-scrollbar:#C5CDC4;
 	--color-ink:var(--theme-page);
@@ -209,6 +209,21 @@ html[data-theme-name] [class*="border-zinc-"],
 html[data-theme-name] [class*="border-neutral-"]{border-color:var(--theme-border)}
 html[data-theme-name] [class*="divide-white/"]>:not([hidden])~:not([hidden]){border-color:var(--theme-divider)}
 html[data-theme-name] [class~="bg-gold"][class~="text-black"]{color:var(--theme-button-text)}
+html[data-theme-name="premium-dashboard"] body :is(p,small,label,li,dt,dd,figcaption,blockquote,legend,caption){
+	color:var(--theme-text-secondary);
+}
+html[data-theme-name="premium-dashboard"] body :is(h1,h2,h3,h4,h5,h6){
+	color:var(--theme-text);
+}
+html[data-theme-name="premium-dashboard"] body a{color:var(--theme-accent)}
+html[data-theme-name="premium-dashboard"] body :is(.text-profit,.admin-metric-change,.is-positive,.is-success){
+	color:var(--theme-positive);
+}
+html[data-theme-name="premium-dashboard"] body :is(.text-loss,.admin-metric-change.is-down,.is-negative,.is-error){
+	color:var(--theme-negative);
+}
+html[data-theme-name="premium-dashboard"] body .is-warning{color:var(--theme-warning)}
+html[data-theme-name="premium-dashboard"] body .is-info{color:var(--theme-info)}
 html[data-theme-name="premium-dashboard"] .startup-screen{
 	background:radial-gradient(circle at center,rgba(156,121,69,.11),transparent 40%),var(--theme-page);
 	color:var(--theme-text);
