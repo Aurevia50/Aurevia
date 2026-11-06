@@ -244,6 +244,8 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
 .market-stage-price small{display:block;margin-top:5px;color:#829087;font-size:9px;letter-spacing:.04em}
 .market-stage-chart{position:relative;min-height:205px;padding-top:8px}
 .market-stage-chart .h-72{height:190px}
+.market-stage-chart .live-chart-canvas{height:190px;background:transparent!important}
+.home-market-timeframes{margin:0 0 5px}
 .market-stage-chart .recharts-cartesian-grid line{stroke:rgba(220,230,221,.07)}
 .market-stage-chart .recharts-line path{stroke:var(--color-gold)}
 .market-chart-empty{display:grid;min-height:190px;place-items:center;color:#829087;font-size:12px}
@@ -2893,6 +2895,7 @@ body:has(.admin-shell-chrome) main.account-page{width:calc(100% - 258px);max-wid
 /* Authenticated user account shell */
 .site-nav-user-shell{position:fixed;inset:0 0 auto;z-index:300;height:70px;border-bottom:1px solid rgba(212,167,44,.15);background:rgba(6,17,12,.97);box-shadow:0 10px 32px rgba(0,0,0,.24);backdrop-filter:blur(18px)}
 .site-nav-user-shell .nav-inner{display:grid;width:100%;max-width:none;min-height:70px;grid-template-columns:auto minmax(180px,1fr) auto auto auto;align-items:center;gap:clamp(10px,1.6vw,22px);margin:0;padding:0 clamp(14px,2vw,28px)}
+.site-nav-user-shell.is-home-shell .nav-inner{grid-template-columns:minmax(0,1fr) auto auto}
 .site-nav-user-shell .brand{min-width:max-content;gap:8px}
 .site-nav-user-shell .brand img{width:34px;height:34px}
 .site-nav-user-shell .brand span{font-size:11px}
@@ -2918,6 +2921,7 @@ body:has(.admin-shell-chrome) main.account-page{width:calc(100% - 258px);max-wid
 .user-topbar-actions{display:flex;align-items:center;gap:8px}
 .site-nav-user-shell .notification-bell-button{display:grid;width:35px;height:35px;place-items:center;border:1px solid rgba(255,255,255,.1);border-radius:5px;background:rgba(255,255,255,.025);color:#d3ddd4}
 .site-nav-user-shell .notification-bell-button:hover{border-color:rgba(212,167,44,.35);color:#f1d987}
+.site-nav-user-shell.is-home-shell .user-topbar-actions{justify-self:end}
 .site-nav-user-shell .notification-popover{top:calc(100% + 14px);right:0}
 .user-topbar-identity{display:flex;min-width:105px;max-width:190px;align-items:center;gap:8px}
 .user-topbar-avatar{display:grid;width:32px;height:32px;flex:none;place-items:center;border:1px solid rgba(212,167,44,.28);border-radius:50%;background:rgba(212,167,44,.08);color:#e2c467;font-size:11px;font-weight:700}
@@ -3164,6 +3168,7 @@ body:has(.site-nav-user-shell) main.user-dashboard-page{width:100%;max-width:165
 }
 @media(max-width:760px){
 	.site-nav-user-shell .nav-inner{min-height:62px;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;padding-inline:10px}
+	.site-nav-user-shell.is-home-shell .nav-inner{grid-template-columns:minmax(0,1fr) auto auto}
 	.user-dashboard-welcome-actions{flex-wrap:wrap;justify-content:flex-end}
 	.user-dashboard-shortcuts{order:2;width:100%;justify-content:flex-end}
 	.site-nav-user-shell{height:62px}
@@ -3173,6 +3178,7 @@ body:has(.site-nav-user-shell) main.user-dashboard-page{width:100%;max-width:165
 	.site-nav-user-shell .user-market-search input{font-size:9px}
 	.site-nav-user-shell .user-mode-control{position:absolute;right:104px;bottom:-41px;min-height:31px}
 	.site-nav-user-shell .user-mode-control button{min-width:44px;min-height:23px;font-size:8px}
+	.site-nav-user-shell.is-home-shell .user-mode-control{position:static;right:auto;bottom:auto}
 	.site-nav-user-shell .user-topbar-actions{gap:5px}
 	.site-nav-user-shell .user-topbar-actions>.language-selector{display:none}
 	.site-nav-user-shell .user-topbar-actions .notification-bell-button,.site-nav-user-shell .user-account-back{width:31px;height:31px}
@@ -3188,12 +3194,14 @@ body:has(.site-nav-user-shell) main.user-dashboard-page{width:100%;max-width:165
 }
 @media(max-width:520px){
 	.site-nav-user-shell .nav-inner{grid-template-columns:auto minmax(0,1fr) auto;gap:6px;padding-inline:8px}
+	.site-nav-user-shell.is-home-shell .nav-inner{grid-template-columns:minmax(0,1fr) auto auto}
 	.site-nav-user-shell .brand{gap:5px}
 	.site-nav-user-shell .brand img{width:27px;height:27px}
 	.site-nav-user-shell .brand span{font-size:8px}
 	.site-nav-user-shell .user-market-search{min-width:0}
 	.site-nav-user-shell .user-market-search input{font-size:8px}
 	.site-nav-user-shell .user-mode-control{right:89px}
+	.site-nav-user-shell.is-home-shell .user-mode-control{right:auto}
 	.site-nav-user-shell .user-topbar-actions{gap:4px}
 	.site-nav-user-shell .user-topbar-actions .notification-bell-button,.site-nav-user-shell .user-account-back{width:28px;height:28px}
 	.user-dashboard-welcome{align-items:flex-start}

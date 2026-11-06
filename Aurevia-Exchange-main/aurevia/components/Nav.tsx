@@ -70,6 +70,7 @@ export default function Nav(){
   return !hash||pathname!==path||(currentHash||'#profile')===`#${hash}`;
  };
  const userMode=status==='authenticated'&&data?.user?.role==='USER';
+ const homeRoute=pathname==='/';
  const userDestinations=[
   {href:'/dashboard',label:'Dashboard',group:'Overview'},
    {href:'/markets',label:'Markets',group:'Investing'},
@@ -217,10 +218,10 @@ export default function Nav(){
   else router.push('/dashboard');
  }
  if(userMode&&data?.user)return <>
-  <header className="site-nav site-nav-authenticated site-nav-user-shell">
+  <header className={`site-nav site-nav-authenticated site-nav-user-shell${homeRoute?' is-home-shell':''}`}>
   <div className="nav-inner">
    <Link href="/dashboard" className="brand" onClick={close}><Image className="brand-logo-image" src="/aurevia-logo.png" alt="" width={36} height={36}/><span className="brand-copy"><strong>Aurevia</strong><small>EXCHANGE</small></span></Link>
-   <form className="user-market-search" role="search" onSubmit={submitMarketSearch}>
+   {!homeRoute&&<form className="user-market-search" role="search" onSubmit={submitMarketSearch}>
     <Search size={16} aria-hidden="true"/>
     <input aria-label="Search markets and account pages" autoComplete="off" value={marketSearch} onFocus={()=>setMarketSearchOpen(true)} onBlur={()=>setMarketSearchOpen(false)} onChange={event=>setMarketSearch(event.target.value)} placeholder="Search markets or pages"/>
     {marketSearch&&<button type="button" className="user-search-clear" onClick={()=>setMarketSearch('')} aria-label="Clear market search"><X size={14}/></button>}
@@ -229,25 +230,25 @@ export default function Nav(){
      {matchingMarkets.length>0&&<section aria-label="Markets"><h2>Markets</h2>{matchingMarkets.map(asset=><button type="button" key={asset.id} onMouseDown={event=>event.preventDefault()} onClick={()=>openMarket(asset.id)}><span><b>{asset.id}</b><small>{asset.name}</small></span><ArrowRight size={14}/></button>)}</section>}
      {!matchingPages.length&&!matchingMarkets.length&&<p>No pages or supported markets match that search.</p>}
     </div>}
-   </form>
+   </form>}
    <div className="user-mode-control" role="group" aria-label={translate('accountMode')}>
     <button type="button" aria-pressed={data.user.accountMode==='DEMO'} disabled={modeBusy||loggingOut||data.user.accountMode==='DEMO'} onClick={()=>void changeMode('DEMO')}>Demo</button>
     <button type="button" aria-pressed={data.user.accountMode==='REAL'} disabled={modeBusy||loggingOut||data.user.accountMode==='REAL'} onClick={()=>void changeMode('REAL')}>Real</button>
    </div>
-   <div className="user-topbar-actions"><button type="button" className="user-account-back" onClick={goBack} aria-label="Go back to previous page" title="Go back to previous page"><ArrowLeft size={16} aria-hidden="true"/></button><NotificationBell/><button ref={userMenuButtonRef} type="button" className={`user-account-back user-topbar-more${open||moreMenuGroups.some(group=>group.links.some(item=>active(item.href)))?' is-active':''}`} aria-label="More account navigation" aria-expanded={open} aria-controls="user-more-menu" onClick={()=>setOpen(value=>!value)}><MoreHorizontal size={17} aria-hidden="true"/></button><LanguageSelector/></div>
-   <span className="user-topbar-identity"><ProfileAvatar className="user-topbar-avatar" size={32} alt="Your profile picture"/><span><b>{data.user.name||data.user.email}</b><AccountTierBadge tier={tierLabel}/></span></span>
+   <div className="user-topbar-actions">{homeRoute?<NotificationBell/>:<><button type="button" className="user-account-back" onClick={goBack} aria-label="Go back to previous page" title="Go back to previous page"><ArrowLeft size={16} aria-hidden="true"/></button><NotificationBell/><button ref={userMenuButtonRef} type="button" className={`user-account-back user-topbar-more${open||moreMenuGroups.some(group=>group.links.some(item=>active(item.href)))?' is-active':''}`} aria-label="More account navigation" aria-expanded={open} aria-controls="user-more-menu" onClick={()=>setOpen(value=>!value)}><MoreHorizontal size={17} aria-hidden="true"/></button><LanguageSelector/></>}</div>
+   {!homeRoute&&<span className="user-topbar-identity"><ProfileAvatar className="user-topbar-avatar" size={32} alt="Your profile picture"/><span><b>{data.user.name||data.user.email}</b><AccountTierBadge tier={tierLabel}/></span></span>}
    {modeError&&<span className="user-mode-error" role="alert">{modeError}</span>}
   </div>
   </header>
-  <nav aria-label="Primary account navigation" className="user-bottom-navigation">
+  {!homeRoute&&<nav aria-label="Primary account navigation" className="user-bottom-navigation">
    <Link href="/dashboard" aria-label="Dashboard" aria-current={pathname==='/dashboard'?'page':undefined} className={pathname==='/dashboard'?'is-active':''}><House size={20} strokeWidth={1.8}/><span>Dashboard</span></Link>
    <Link href="/markets" aria-current={active('/markets')?'page':undefined} className={active('/markets')?'is-active':''}><LineChart size={20} strokeWidth={1.8}/><span>Markets</span></Link>
    <Link href="/trade" aria-label="Trade markets" aria-current={active('/trade')?'page':undefined} className={`user-bottom-trade ${active('/trade')?'is-active':''}`}><ArrowLeftRight size={22} strokeWidth={2}/><span>Trade</span></Link>
    <Link href="/portfolio" aria-current={active('/portfolio')?'page':undefined} className={active('/portfolio')?'is-active':''}><ChartNoAxesCombined size={20} strokeWidth={1.8}/><span>Portfolio</span></Link>
    <button ref={userBottomMenuButtonRef} type="button" className={open?'is-active':''} aria-label={open?'Close More navigation':'More navigation'} aria-expanded={open} aria-controls="user-more-menu" onClick={()=>setOpen(value=>!value)}><MoreHorizontal size={20} strokeWidth={1.8}/><span>More</span></button>
-  </nav>
-  {open&&<button type="button" className="user-more-backdrop" aria-label="Close More menu" tabIndex={-1} onClick={close}/>}
-  <section ref={userNavRef} id="user-more-menu" className="user-more-menu" role="dialog" aria-modal={open||undefined} aria-labelledby="user-more-title" hidden={!open}>
+  </nav>}
+  {!homeRoute&&open&&<button type="button" className="user-more-backdrop" aria-label="Close More menu" tabIndex={-1} onClick={close}/>}
+  {!homeRoute&&<section ref={userNavRef} id="user-more-menu" className="user-more-menu" role="dialog" aria-modal={open||undefined} aria-labelledby="user-more-title" hidden={!open}>
    <header className="user-more-heading"><div><span>ACCOUNT NAVIGATION</span><h2 id="user-more-title">More</h2></div><button type="button" className="user-more-close" aria-label="Close More menu" onClick={close}><X size={18}/></button></header>
    <div className="user-more-profile"><ProfileAvatar className="user-topbar-avatar" size={36} alt="Your profile picture"/><span><b>{data.user.name||data.user.email}</b><AccountTierBadge tier={tierLabel}/></span><Link href="/settings#profile" onClick={close}>Profile</Link></div>
    <div className="user-more-theme"><span>Appearance</span><ThemeToggle/></div>
@@ -255,7 +256,7 @@ export default function Nav(){
     {currentMode!=='DEMO'&&<section className="user-more-group" aria-label="Additional account pages"><h3>Additional</h3><Link href="/tax-services" aria-current={active('/tax-services')?'page':undefined} onClick={close}><FileText size={17}/><span>Tax services</span></Link></section>}
    </div>
    <button type="button" className="user-more-logout" disabled={loggingOut} aria-busy={loggingOut} onClick={()=>void logout()}><LogOut size={17}/>{loggingOut?translate('signingOut'):translate('logout')}</button>
-  </section>
+  </section>}
  </>;
  return <header className={`site-nav ${status==='authenticated'?'site-nav-authenticated':''} ${status==='authenticated'&&data?.user?.role==='ADMIN'?'site-nav-admin':''}`}><div className="nav-inner">
    <Link href="/" className="brand" onClick={close}><Image className="brand-logo-image" src="/aurevia-logo.png" alt="" width={38} height={38}/><span className="brand-copy"><strong>Aurevia</strong><small>EXCHANGE</small></span></Link>

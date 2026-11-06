@@ -1,10 +1,10 @@
 'use client';
 
 import {createContext,useContext,useEffect,useState,type ReactNode} from 'react';
+import type {MarketQuote} from '@/lib/live-market';
 
-export type HomeMarketItem={id:string;symbol:string;name:string;price:number;change?:number};
+export type HomeMarketItem={id:string;symbol:string;name:string;price:number;change?:number;quote:MarketQuote};
 export type HomeMarketDataStatus='LIVE'|'PARTIAL'|'INTERNAL'|'UNAVAILABLE';
-type LiveQuotePayload={asset:{id:string;name:string;currency:string};price:number;changePercent:number;updatedAt:string;source:string;isStale?:boolean};
 type HomeMarketDataValue={
 	markets:HomeMarketItem[];
 	status:'loading'|'ready'|'error';
@@ -32,8 +32,8 @@ export function HomeMarketDataProvider({children}:{children:ReactNode}){
 			refreshing=true;
 			try{
 				const response=await fetch(`/api/live-markets?symbols=${encodeURIComponent(marketSymbols)}`,{cache:'no-store'});
-				const payload=await response.json() as {quotes?:LiveQuotePayload[];marketDataStatus?:string};
-				const quotes=(payload.quotes??[]).filter((item):item is LiveQuotePayload=>Boolean(item)&&typeof item.price==='number'&&typeof item.asset?.id==='string');
+				const payload=await response.json() as {quotes?:Array<MarketQuote|{asset?:{id?:string};error?:string}>;marketDataStatus?:string};
+				const quotes=(payload.quotes??[]).filter((item):item is MarketQuote=>'price'in item&&Number.isFinite(item.price)&&typeof item.asset?.id==='string');
 				if(!response.ok||!quotes.length)throw new Error('Market data unavailable');
 				if(!active)return;
 				setData({
@@ -43,6 +43,7 @@ export function HomeMarketDataProvider({children}:{children:ReactNode}){
 						name:item.asset.name||item.asset.id,
 						price:Number(item.price),
 						change:Number(item.changePercent)/100,
+						quote:item,
 					})),
 					status:'ready',
 					marketDataStatus:payload.marketDataStatus==='LIVE'||payload.marketDataStatus==='PARTIAL'||payload.marketDataStatus==='INTERNAL'?payload.marketDataStatus:'UNAVAILABLE',

@@ -2,8 +2,11 @@
 
 import dynamic from 'next/dynamic';
 import {useEffect,useRef,useState} from 'react';
+import {useSession} from 'next-auth/react';
+import LivePriceChart from '@/components/LivePriceChart';
 import {useHomeMarketData} from '@/components/HomeMarketData';
 import {useLocale} from '@/lib/i18n-context';
+import {isExternalMarketDataSource,type MarketCandle,type MarketQuote,type TimeframeId} from '@/lib/live-market';
 
 const PriceChart=dynamic(()=>import('@/components/PriceChart'),{
 	loading:()=> <div className="market-chart-empty" role="status">Loading market chart</div>,
@@ -11,14 +14,21 @@ const PriceChart=dynamic(()=>import('@/components/PriceChart'),{
 
 export default function HomeMarketPreview(){
   const {translate}=useLocale();
+  const {data:session}=useSession();
   const {markets,status,marketDataStatus,updatedAt}=useHomeMarketData();
   const [selected,setSelected]=useState('');
   const [flash,setFlash]=useState<'up'|'down'|''>('');
   const [now,setNow]=useState(0);
+  const [timeframe,setTimeframe]=useState<TimeframeId>('1d');
+  const [history,setHistory]=useState<{candles:MarketCandle[];interval:string;quote:MarketQuote|null}|null>(null);
+  const [historyLoading,setHistoryLoading]=useState(false);
+  const [historyError,setHistoryError]=useState('');
   const prevPrice=useRef<number|null>(null);
   const current=markets.find(item=>item.id===selected);
   const currentId=current?.id;
   const currentPrice=current?.price;
+  const currentQuoteSource=current?.quote.source;
+  const realMode=session?.user?.role==='USER'&&session.user.accountMode==='REAL';
   const visibleMarkets=markets.slice(0,4);
 
   useEffect(()=>{
@@ -42,6 +52,34 @@ export default function HomeMarketPreview(){
     const timer=window.setInterval(()=>setNow(Date.now()),1_000);
     return()=>window.clearInterval(timer);
   },[updatedAt]);
+
+  useEffect(()=>{
+    if(!realMode||!currentId||!currentQuoteSource||!isExternalMarketDataSource(currentQuoteSource)){
+      setHistory(null);
+      setHistoryError('');
+      setHistoryLoading(false);
+      return;
+    }
+    let active=true;
+    setHistory(null);
+    setHistoryError('');
+    setHistoryLoading(true);
+    void fetch(`/api/live-markets/${encodeURIComponent(currentId)}?timeframe=${timeframe}`,{cache:'no-store'})
+      .then(async response=>{
+        const result=await response.json() as {candles?:MarketCandle[];interval?:string;quote?:MarketQuote|null;source?:string;error?:string};
+        if(!response.ok)throw new Error(result.error||'Provider chart history is unavailable.');
+        if(!result.source||!isExternalMarketDataSource(result.source))throw new Error('Provider history is unavailable for REAL mode.');
+        if(!Array.isArray(result.candles)||result.candles.length===0)throw new Error('No provider candles are available for this range.');
+        if(active)setHistory({candles:result.candles,interval:result.interval||'1m',quote:result.quote||null});
+      })
+      .catch(error=>{
+        if(active)setHistoryError(error instanceof Error?error.message:'Provider chart history is unavailable.');
+      })
+      .finally(()=>{
+        if(active)setHistoryLoading(false);
+      });
+    return()=>{active=false};
+  },[currentId,currentQuoteSource,realMode,timeframe]);
 
   const changePct=current?.change;
   const changeClass=changePct===undefined?'':changePct>=0?'is-up':'is-down';
@@ -68,8 +106,17 @@ export default function HomeMarketPreview(){
       </div>
     </div>
     <div className="market-stage-chart">
-      {current?<PriceChart price={current.price} assetId={current.id}/>:<div className="market-chart-empty" role="status">{status==='error'?translate('marketDataUnavailableRightNow'):translate('loading')}</div>}
-      <div className="chart-axis-labels"><span>{translate('demoPriceLabel')}</span><span>{translate('marketFeedLabel')}</span></div>
+      {realMode&&<div className="trade-chart-timeframes home-market-timeframes" role="group" aria-label="Chart timeframe">
+        {(['1h','1d','5d','1m','3m','1y'] as TimeframeId[]).map(value=><button type="button" key={value} aria-pressed={timeframe===value} onClick={()=>setTimeframe(value)}>{value.toUpperCase()}</button>)}
+      </div>}
+      {current&&realMode?
+        current.quote.source&&isExternalMarketDataSource(current.quote.source)?
+          history?<LivePriceChart candles={history.candles} quote={current.quote} timeframe={timeframe} interval={history.interval} loading={historyLoading} error={historyError}/>
+            :<div className="market-chart-empty" role={historyError?'alert':'status'}>{historyError||'Loading provider market history…'}</div>
+          :<div className="market-chart-empty" role="status">A current external market quote is unavailable for REAL mode.</div>
+        :current?<PriceChart price={current.price} assetId={current.id}/>
+        :<div className="market-chart-empty" role="status">{status==='error'?translate('marketDataUnavailableRightNow'):translate('loading')}</div>}
+      <div className="chart-axis-labels"><span>{realMode?'REAL PRICE':translate('demoPriceLabel')}</span><span>{translate('marketFeedLabel')}</span></div>
     </div>
     <div className="market-stage-footer">
       <div className="market-pair-list" aria-label={translate('marketView')}>
