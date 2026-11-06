@@ -56,7 +56,7 @@ const moreMenuGroups=[
   {href:'/support',label:'Help and support',icon:Mail},
  ]},
 ];
-const realOnlyNavigationPaths=new Set(['/investments','/wallet/transactions','/kyc','/cards','/tax-services']);
+const realOnlyNavigationPaths=new Set(['/investments','/wallet?action=DEPOSIT','/wallet?action=WITHDRAWAL','/wallet/transactions','/wallet/convert','/kyc','/cards','/tax-services']);
 
 export default function Nav(){
  const {data,status,update}=useSession(); const pathname=usePathname(); const router=useRouter(); const {translate}=useLocale(); const [open,setOpen]=useState(false); const [modeError,setModeError]=useState(''); const [modeBusy,setModeBusy]=useState(false); const [loggingOut,setLoggingOut]=useState(false); const [taxServicesAvailable,setTaxServicesAvailable]=useState(false); const [marketSearch,setMarketSearch]=useState(''); const [marketSearchOpen,setMarketSearchOpen]=useState(false); const [currentHash,setCurrentHash]=useState(''); const userNavRef=useRef<HTMLElement>(null); const userMenuButtonRef=useRef<HTMLButtonElement>(null); const userBottomMenuButtonRef=useRef<HTMLButtonElement>(null);

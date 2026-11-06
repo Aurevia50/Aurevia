@@ -46,7 +46,7 @@ type OrderBook={kind?:"SIMULATED_BOOK"|"TOP_OF_BOOK";bids?:OrderBookLevel[];asks
 type LiveQuotesResponse={quotes:Array<MarketQuote|{asset:MarketQuote['asset'];error:string}>};
 type MarketUpdate={symbol:string;price:number;change:number;changePercent:number;source:string;dataMode:'SIMULATED'|'LIVE';lastUpdatedAt:string};
 type TradeMessage={text:string;kind:'error'|'success'|'info'};
-const LIVE_TRADE_ASSET_IDS=["DJI","SPX","NASDAQ","SP100","NDX","DAX","IBEX","NIKKEI","MERV","EURGBP","BTC","AAPL","MSFT","NVDA","AMZN","GOOGL","TSLA"];
+const LIVE_TRADE_ASSET_IDS=["BTC","AAPL","MSFT","NVDA","AMZN","GOOGL","TSLA"];
 
 function normalizedSymbol(value:string){return value.toUpperCase().replace(/[^A-Z0-9]/g,"")}
 function isExternalMarketDataSource(source:string){return source==='Finnhub'||source.startsWith('Alpaca')}
@@ -73,7 +73,7 @@ async function loadTradingMarkets(mode:"DEMO"|"REAL"):Promise<I[]>{
       symbol===normalizedSymbol(item.asset.ticker)||
       item.asset.id==="BTC"&&symbol==="BTCUSD",
     );
-    if(!quote)return [];
+    if(!quote||!['STOCK','CRYPTO'].includes(quote.asset.type))return [];
     return [{
       ...instrument,
       price:quote.price,
@@ -259,6 +259,13 @@ export default function Trade() {
     return () => {active=false;clearInterval(t);};
   }, [selected,accountMode]);
   const cur = items.find((i) => i.id === selected);
+  function selectInstrument(instrument:I){
+    setSelected(instrument.id);
+    if(accountMode==="REAL"&&instrument.assetType==="CRYPTO"&&type==="STOP"){
+      setType("MARKET");
+      setPrice("");
+    }
+  }
   const pnl = (p: Pos) => {
     const mark=items.find(item=>item.symbol===p.instrument.symbol);
     if(accountMode==="REAL"&&!mark?.liveQuote)return null;
@@ -290,9 +297,17 @@ export default function Trade() {
     return()=>{active=false;};
   },[accountMode,cur?.assetId,chartTimeframe]);
   const requestedQuantity = Number(qty);
-  const estimatedNotional = (cur?.price ?? 0) * (Number.isFinite(requestedQuantity) ? requestedQuantity : 0);
+  const enteredOrderPrice=Number(price);
+  const realReferencePrice=type==="MARKET"
+    ?side==="BUY"?(cur?.ask??cur?.price):(cur?.bid??cur?.price)
+    :Number.isFinite(enteredOrderPrice)&&enteredOrderPrice>0?enteredOrderPrice:cur?.price;
+  const estimatedPrice=accountMode==="REAL"?realReferencePrice:cur?.price;
+  const estimatedNotional = (estimatedPrice ?? 0) * (Number.isFinite(requestedQuantity) ? requestedQuantity : 0);
   const estimatedFee = accountMode==='DEMO'?estimatedNotional * Number(cur?.takerFee ?? 0):0;
   const estimatedTradeValue=side==="BUY"?estimatedNotional+estimatedFee:Math.max(0,estimatedNotional-estimatedFee);
+  const heldSellQuantity=positions.filter(position=>position.instrumentId===selected&&position.side==="BUY").reduce((total,position)=>total+position.quantity,0);
+  const reservedSellQuantity=orders.filter(order=>order.instrument.symbol===cur?.symbol&&order.side==="SELL"&&["OPEN","PARTIALLY_FILLED","PENDING_CANCEL"].includes(order.status)).reduce((total,order)=>total+Math.max(0,order.quantity-order.filledQuantity),0);
+  const availableSellQuantity=Math.max(0,heldSellQuantity-reservedSellQuantity);
   const marketQuoteTime=book.updatedAt??cur?.liveQuote?.updatedAt;
   const hiddenFailedOrderIds=new Set(dismissedFailedOrderIds);
   const failedOrders=orders.filter(isFailedOrder);
@@ -441,9 +456,10 @@ export default function Trade() {
                 <button
                   type="button"
                   key={i.id}
-                  onClick={() => setSelected(i.id)}
+                  onClick={() => selectInstrument(i)}
                   className={`rounded-lg px-3 py-2 text-sm ${i.id === selected ? "bg-gold text-black" : "bg-white/5"}`}
                   aria-pressed={i.id === selected}
+                  data-asset-type={i.assetType}
                 >
                   {i.symbol}{" "}
                   {i.price.toLocaleString(undefined, {
@@ -549,9 +565,9 @@ export default function Trade() {
               <label className="account-label">{translate('orderType')}<select className="input" required value={type} onChange={(event) => setType(event.target.value as "MARKET"|"LIMIT"|"STOP")}><option value="MARKET">Market</option><option value="LIMIT">Limit</option><option value="STOP" disabled={accountMode==="REAL"&&cur?.assetType==="CRYPTO"}>Stop</option></select></label>
               <label className="account-label">{translate('quantity')}<input className="input" type="number" min="0.00000001" step="any" inputMode="decimal" required value={qty} onChange={(event) => setQty(event.target.value)} placeholder="0.00"/></label>
               {type !== "MARKET" && <label className="account-label">{type === "STOP" ? translate('stopPrice') : translate('limitPrice')}<input className="input" type="number" min="0.00000001" step="any" inputMode="decimal" required value={price} onChange={(event) => setPrice(event.target.value)} placeholder="0.00"/></label>}
-              <div className="trade-estimate" aria-live="polite"><div><span>Available Aurevia wallet · {accountMode}</span><b>{availableBalance===null?"Loading…":formatUsd(availableBalance)}</b></div>{accountMode==='REAL'&&<><div><span>Reserved for open orders</span><b>{formatUsd(paperReservedBalance)}</b></div><div><span>Available to trade</span><b>{formatUsd(paperAvailableBalance)}</b></div></>}<div><span>{side==='BUY'?(accountMode==='REAL'?'Estimated buy notional':'Estimated required cash'):'Estimated sell proceeds'}</span><b>{cur?formatUsd(estimatedTradeValue):"—"}</b></div>{accountMode==='DEMO'&&<div><span>{translate('estimatedFee')}</span><b>{cur?.takerFee===undefined?"Not configured":formatUsd(estimatedFee)}</b></div>}</div>
-              <p className="trade-estimate-note">{accountMode==='REAL'?'Quotes are estimates. Your wallet and positions update only after a fill is confirmed.':'Quotes, order matching, positions, and P/L are for practice and isolated to your DEMO account.'}</p>
-              <button type="submit" disabled={placing||!selected||!cur||(accountMode==="REAL"&&!cur.liveQuote)} className="btn w-full bg-gold text-black disabled:opacity-50">{placing?translate('submittingOrder'):translate('placeOrder',{side})}</button>
+              <div className="trade-estimate" aria-live="polite"><div><span>Available Aurevia wallet · {accountMode}</span><b>{availableBalance===null?"Loading…":formatUsd(availableBalance)}</b></div>{accountMode==='REAL'&&<><div><span>Reserved for open orders</span><b>{formatUsd(paperReservedBalance)}</b></div><div><span>Available to trade</span><b>{formatUsd(paperAvailableBalance)}</b></div>{side==='SELL'&&<div><span>Available quantity to sell</span><b>{availableSellQuantity.toLocaleString(undefined,{maximumFractionDigits:8})}</b></div>}<div><span>Estimated price per unit</span><b>{estimatedPrice?formatUsd(estimatedPrice):"—"}</b></div></>}<div><span>{side==='BUY'?(accountMode==='REAL'?'Estimated buy notional':'Estimated required cash'):'Estimated sell proceeds'}</span><b>{cur?formatUsd(estimatedTradeValue):"—"}</b></div>{accountMode==='DEMO'&&<div><span>{translate('estimatedFee')}</span><b>{cur?.takerFee===undefined?"Not configured":formatUsd(estimatedFee)}</b></div>}</div>
+              <p className="trade-estimate-note">{accountMode==='REAL'?'Market estimates use the current ask or bid; limit and stop estimates use your entered price. Final execution prices may vary. Your wallet and positions update only after a fill is confirmed.':'Quotes, order matching, positions, and P/L are for practice and isolated to your DEMO account.'}</p>
+              <button type="submit" disabled={placing||!selected||!cur||(accountMode==="REAL"&&(!cur.liveQuote||side==="SELL"&&requestedQuantity>availableSellQuantity))} className="btn w-full bg-gold text-black disabled:opacity-50">{placing?translate('submittingOrder'):translate('placeOrder',{side})}</button>
               </fieldset>
               {message&&<div className={`trade-message is-${message.kind}`} role={message.kind==='error'?'alert':'status'}><span className="trade-message-icon">{message.kind==='success'?<CheckCircle2 size={17}/>:<AlertCircle size={17}/>}</span><p>{message.text}</p><button type="button" aria-label="Dismiss message" onClick={()=>setMessage(null)}><X size={16}/></button></div>}
             </form>

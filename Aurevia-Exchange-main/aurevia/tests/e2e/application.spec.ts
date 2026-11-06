@@ -210,8 +210,13 @@ test('users can submit all Tier 3 requirements before administrator KYC review',
 	const tierState=await page.request.get('/api/tier-requests');
 	expect(tierState.ok()).toBe(true);
 	await page.goto('/tier');
-	await expect(page.getByRole('heading',{name:'Account tiers'})).toBeVisible();
+	await expect(page.getByRole('heading',{name:'Your account tier.'})).toBeVisible();
 	await expect(page.getByRole('progressbar',{name:'Account tier progression'})).toBeVisible();
+	await selectAccountMode(page,'REAL');
+	await page.goto('/kyc');
+	await expect(page.getByRole('heading',{name:'KYC tier requirements'})).toBeVisible();
+	await expect(page.getByText(/This flow does not run automated face matching or liveness detection/)).toBeVisible();
+	await expect(page.getByRole('option',{name:'Selfie for manual review'})).toBeAttached();
 });
 
 test('market view labels internal reference prices when no live provider is configured',async({page})=>{
@@ -648,6 +653,15 @@ test('authenticated bottom navigation stays fixed across viewports and More dest
 	await expect(moreButton).toHaveAttribute('aria-expanded','false');
 	await expect(moreButton).toHaveClass(/is-active/);
 	await selectAccountMode(page,'DEMO');
+	await page.goto('/dashboard');
+	await moreButton.click();
+	const demoMoreMenu=page.getByRole('dialog',{name:'More'});
+	for(const label of ['Investments','Deposits','Withdrawals','Transaction history','Currency conversion','Identity verification / KYC','Digital cards','Tax services']){
+		await expect(demoMoreMenu.getByRole('link',{name:label})).toHaveCount(0);
+	}
+	for(const label of ['Markets','Trade','Portfolio','Orders','Wallet','Account activity']){
+		await expect(demoMoreMenu.getByRole('link',{name:label})).toBeVisible();
+	}
 });
 
 test('global chat support persists its position and exchanges private admin messages',async({browser,page})=>{
@@ -1159,6 +1173,9 @@ test('notifications bell, unread state, mark one/all, and history persist',async
 	await bell.click();
 	const dialog=page.getByRole('dialog',{name:'Notifications'});
 	await expect(dialog).toBeVisible();
+	const popoverBounds=await dialog.boundingBox();
+	expect(popoverBounds?.height).toBeLessThan(844*.7);
+	expect(popoverBounds?.width).toBeLessThan(390);
 	const closeButton=dialog.getByRole('button',{name:'Close notifications'});
 	await expect.poll(()=>closeButton.evaluate(element=>{
 		const bounds=element.getBoundingClientRect();
@@ -1228,6 +1245,15 @@ test('account-mode changes initialize and isolate wallet, trade, history, and su
 	await page.goto('/trade');
 	await selectAccountMode(page,'REAL');
 	await expect(page.locator('.account-heading .status-pill')).toContainText('REAL');
+	const realInstrumentButtons=page.locator('.trade-market-select button[data-asset-type]');
+	await expect.poll(()=>realInstrumentButtons.evaluateAll(buttons=>buttons.every(button=>['STOCK','CRYPTO'].includes(button.getAttribute('data-asset-type')||'')))).toBe(true);
+	const cryptoInstrument=page.locator('.trade-market-select button[data-asset-type="CRYPTO"]').first();
+	if(await cryptoInstrument.count()){
+		const orderType=page.locator('.trade-ticket-card select');
+		await orderType.selectOption('STOP');
+		await cryptoInstrument.click();
+		await expect(orderType).toHaveValue('MARKET');
+	}
 	for(const viewport of [{width:375,height:812},{width:1440,height:900}]){
 		await page.setViewportSize(viewport);
 		await expect(page.getByText('Trade confidently with Aurevia. Manage your orders, monitor execution status, and track your account balance, portfolio performance, and available funds from one secure trading dashboard. Deposits and withdrawals are subject to account verification and approval.',{exact:true})).toBeVisible();
@@ -2411,6 +2437,13 @@ test('DEMO deposits and withdrawals are unavailable in the wallet and rejected b
 	await page.goto('/dashboard');
 	await expect(page.getByRole('link',{name:'Deposit'})).toHaveCount(0);
 	await expect(page.getByRole('link',{name:'Request withdrawal'})).toHaveCount(0);
+	await page.goto('/wallet');
+	const demoWalletActions=page.locator('.wallet-quick-actions-demo');
+	await expect(demoWalletActions.getByRole('link',{name:'Transactions'})).toHaveCount(0);
+	await expect(demoWalletActions.getByRole('link',{name:'Practice trade'})).toBeVisible();
+	await expect(demoWalletActions.getByRole('link',{name:'Activity'})).toBeVisible();
+	await expect(page.getByRole('link',{name:'View activity'})).toBeVisible();
+	await expect(page.getByText('Pending / reserved')).toHaveCount(0);
 
 	const demoDeposit=await page.request.post('/api/wallet',{headers:{'Idempotency-Key':randomUUID()},data:{type:'DEPOSIT',amount:25,currency:'USD',accountMode:'REAL'}});
 	expect(demoDeposit.status()).toBe(403);

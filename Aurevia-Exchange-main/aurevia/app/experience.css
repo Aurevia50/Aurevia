@@ -1049,7 +1049,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
   .market-ribbon{grid-template-columns:1fr auto;gap:8px 12px;min-height:68px;padding:12px 20px}
   .ribbon-label{font-size:9px}
   .ticker-scroll{grid-column:1/-1;grid-row:2}
-  .ticker-items{justify-content:flex-start;gap:24px}
+  .ticker-items{justify-content:flex-start;gap:4px}
   .ticker-item{font-size:9px}
   .ribbon-disclaimer{grid-column:2;grid-row:1;font-size:7px}
   .home-section{width:calc(100% - 40px);padding-block:72px}
@@ -1182,7 +1182,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
 .notification-bell-button{position:relative;display:grid!important;width:42px;min-width:42px;height:42px;place-items:center;padding:0!important;border:1px solid var(--color-border)!important;border-radius:5px!important;background:rgba(255,255,255,.025)!important;color:#dce3dc!important}
 .notification-bell-button:hover{border-color:rgba(197,164,107,.45)!important;color:color-mix(in srgb,var(--color-gold) 65%,white)!important}
 .notification-count{position:absolute;top:-5px;right:0;display:grid;min-width:18px;height:18px;place-items:center;padding:0 4px;border:2px solid var(--color-ink);border-radius:20px;background:#b85f4c;color:white;font-size:9px;font-weight:700;line-height:1}
-.notification-popover{position:absolute;top:calc(100% + 11px);right:0;z-index:100;width:min(390px,calc(100vw - 28px));overflow:hidden;border:1px solid rgba(218,228,218,.17);border-radius:6px;background:#0d1913;box-shadow:0 22px 60px rgba(0,0,0,.5);animation:notification-arrive .16s ease-out both}
+.notification-popover{position:absolute;top:calc(100% + 11px);right:0;z-index:100;display:flex;width:min(390px,calc(100vw - 28px));max-height:min(480px,calc(100dvh - 100px));flex-direction:column;overflow:hidden;border:1px solid var(--theme-border,rgba(218,228,218,.17));border-radius:12px;background:var(--theme-popover,#0d1913);color:var(--theme-text,#edf0e9);box-shadow:var(--theme-shadow,0 22px 60px rgba(0,0,0,.5));animation:notification-arrive .16s ease-out both}
 .notification-popover>header,.notification-popover>footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;border-bottom:1px solid var(--color-border)}
 .notification-popover>header>div:first-child{display:grid;gap:3px}
 .notification-popover>header b{color:#edf0e9;font-size:13px}
@@ -1192,7 +1192,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
 .notification-popover-actions button:hover:not(:disabled){border-color:var(--color-border)!important;color:color-mix(in srgb,var(--color-gold) 65%,white)!important}
 .notification-popover-actions button:disabled{opacity:.4;cursor:not-allowed}
 .notification-close{font-size:20px!important}
-.notification-popover-list{max-height:min(430px,62vh);overflow:auto;overscroll-behavior:contain}
+.notification-popover-list{min-height:0;max-height:min(360px,calc(100dvh - 220px));flex:1 1 auto;overflow:auto;overscroll-behavior:contain}
 .notification-row{display:grid!important;width:100%;grid-template-columns:30px minmax(0,1fr) 14px;align-items:start;gap:10px;min-height:72px;padding:12px 14px!important;border:0!important;border-bottom:1px solid rgba(218,228,218,.07)!important;border-radius:0!important;background:transparent!important;text-align:left;white-space:normal}
 .notification-row:hover{background:rgba(255,255,255,.035)!important}
 .notification-row.is-unread{background:rgba(197,164,107,.045)!important}
@@ -1626,8 +1626,8 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
 @keyframes market-activity-enter{from{opacity:.45;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
 
 @media(max-width:640px){
-  .notification-popover{position:fixed;top:calc(74px + env(safe-area-inset-top));right:12px;left:12px;width:auto;max-height:calc(100dvh - 100px)}
-  .notification-popover-list{max-height:calc(100dvh - 210px)  }
+  .notification-popover{position:fixed;top:calc(74px + env(safe-area-inset-top));right:12px;left:auto;width:min(380px,calc(100vw - 24px));max-height:min(440px,70dvh,calc(100dvh - 100px))}
+  .notification-popover-list{max-height:min(320px,calc(70dvh - 110px))}
 
   .portfolio-page{--portfolio-green:#00e676;--portfolio-bg:#0b0f19;background:#0b0f19}
   .portfolio-heading-actions{display:flex;align-items:center;gap:9px}
@@ -2334,9 +2334,46 @@ section.floating-support-panel{
 .ticker-scroll.is-live:hover .ticker-track{
   animation-play-state:paused;
 }
+.ticker-scroll.is-live.is-vertical{
+  height:42px;
+  mask-image:linear-gradient(180deg,transparent,#000 8%,#000 92%,transparent);
+}
+.ticker-scroll.is-live.is-vertical .ticker-track{
+  display:flex;
+  width:100%;
+  flex-direction:column;
+  animation-name:tickerMarqueeVertical;
+}
+.ticker-scroll.is-live.is-vertical .ticker-items{
+  width:100%;
+  flex-direction:column;
+  align-items:stretch;
+  gap:4px;
+  padding-block:4px;
+}
+.ticker-scroll.is-live.is-vertical .ticker-item{
+  min-height:24px;
+  justify-content:space-between;
+  padding-inline:8px;
+  border-bottom:1px solid rgba(255,255,255,.035);
+}
+.ticker-scroll.is-live.is-vertical .ticker-empty{
+  display:flex;
+  min-height:34px;
+  align-items:center;
+  padding-inline:8px;
+}
+.ticker-scroll.is-live.is-vertical:hover .ticker-track,
+.ticker-scroll.is-live.is-vertical:focus-within .ticker-track{
+  animation-play-state:paused;
+}
 @keyframes tickerMarquee{
   from{transform:translateX(0)}
   to{transform:translateX(-50%)}
+}
+@keyframes tickerMarqueeVertical{
+  from{transform:translateY(0)}
+  to{transform:translateY(-50%)}
 }
 @media(prefers-reduced-motion:reduce){
   .source-dot.is-live{animation:none}

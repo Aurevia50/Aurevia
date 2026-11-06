@@ -18,7 +18,7 @@ export default function HomeMarketTicker(){
     </div>
   ));
 
-  return <div className="ticker-scroll is-live" aria-live="polite">
+  return <div className="ticker-scroll is-live is-vertical" aria-label={translate('demoMarketWatch')} aria-live="polite">
     <div className="ticker-track">
       <div className="ticker-items">{row}{!items.length&&<span className="ticker-empty">{status==='loading'?translate('loadingDemoInstruments'):status==='error'?translate('demoMarketFeedUnavailable'):translate('noDemoInstrumentsConfigured')}</span>}</div>
       {items.length>0&&<div className="ticker-items" aria-hidden="true">{row}</div>}
