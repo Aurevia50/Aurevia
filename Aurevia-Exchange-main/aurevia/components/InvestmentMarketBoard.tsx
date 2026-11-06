@@ -5,7 +5,7 @@ import {Activity,RefreshCw} from 'lucide-react';
 import LivePriceChart from '@/components/LivePriceChart';
 import type {MarketCandle,MarketQuote,TimeframeId} from '@/lib/live-market';
 
-type MarketHistory={quote:MarketQuote|null;candles:MarketCandle[];timeframe:TimeframeId};
+type MarketHistory={quote:MarketQuote|null;candles:MarketCandle[];timeframe:TimeframeId;interval?:string};
 
 export default function InvestmentMarketBoard({symbol}:{symbol:string|null}){
 	const [history,setHistory]=useState<MarketHistory|null>(null);
@@ -40,7 +40,7 @@ export default function InvestmentMarketBoard({symbol}:{symbol:string|null}){
 			<div><span className="account-kicker"><Activity size={13}/> Market context</span><h2>{symbol} · Candlestick view</h2><p className="account-panel-subtitle">Market reference only. This chart does not represent an investment position or credited earnings.</p></div>
 			{history?.quote&&<div className="investment-market-quote"><b>{history.quote.price.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:6})} {history.quote.asset.currency}</b><span>{history.quote.marketStatus||'Market status unavailable'}{history.quote.isStale?' · Delayed':''}</span></div>}
 		</div>
-		{history?<LivePriceChart candles={history.candles} quote={history.quote||undefined} timeframe={history.timeframe} loading={loading} error={error}/>:<div className="investment-market-placeholder" role="status">{error||'Loading market context…'}</div>}
+		{history?<LivePriceChart candles={history.candles} quote={history.quote||undefined} timeframe={history.timeframe} interval={history.interval} loading={loading} error={error}/>:<div className="investment-market-placeholder" role="status">{error||'Loading market context…'}</div>}
 		<div className="investment-market-footer"><span>{error&&!history?'Chart temporarily unavailable':history?.quote?.isStale?'Last available market reference may be delayed':'Quotes may be delayed and are not an execution price.'}</span><span>{updatedAt?`Updated ${new Date(updatedAt).toLocaleTimeString()}`:loading?'Connecting…':''}</span><button type="button" className="text-link" onClick={()=>setRetryCount(value=>value+1)} disabled={loading}><RefreshCw size={13}/> Refresh</button></div>
 	</section>;
 }

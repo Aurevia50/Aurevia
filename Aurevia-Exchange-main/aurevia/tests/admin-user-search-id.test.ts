@@ -61,6 +61,7 @@ describe('admin Aurevia Exchange ID search',()=>{
 			country:'Nigeria',
 			phone:'+2348031234567',
 			phoneVerified:true,
+			avatarKey:'private/avatar/profile.webp',
 			approvedTier:1,
 			accountMode:'DEMO',
 			kycStatus:'PENDING',
@@ -70,10 +71,12 @@ describe('admin Aurevia Exchange ID search',()=>{
 		}]);
 
 		const response=await GET(new Request('https://aurevia.test/api/admin/users'));
+		const result=await response.json();
 
-		expect(await response.json()).toMatchObject([{accountTier:'TIER 2'}]);
+		expect(result).toMatchObject([{accountTier:'TIER 2',hasAvatar:true}]);
 		expect(mocks.userFindMany).toHaveBeenCalledWith(expect.objectContaining({
-			select:expect.objectContaining({phoneVerified:true,approvedTier:true}),
+			select:expect.objectContaining({phoneVerified:true,avatarKey:true,approvedTier:true}),
 		}));
+		expect(result).not.toContainEqual(expect.objectContaining({avatarKey:'private/avatar/profile.webp'}));
 	});
 });

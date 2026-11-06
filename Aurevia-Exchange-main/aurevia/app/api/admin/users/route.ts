@@ -52,7 +52,7 @@ export async function GET(request:Request){
     };
     const users=await db.user.findMany({
       where,
-      select:{id:true,aureviaExchangeId:true,email:true,name:true,country:true,phone:true,phoneVerified:true,approvedTier:true,role:true,status:true,kycStatus:true,accountMode:true,depositEnabled:true,withdrawalEnabled:true,accountRestricted:true,restrictionReason:true,createdAt:true,kyc:{select:{legalName:true,dob:true,address:true,idType:true,idNumber:true,submittedAt:true,reviewedAt:true,reviewNote:true}},kycDocuments:{select:{id:true,kind:true,filename:true,mimeType:true,size:true,status:true,uploadedAt:true,reviewedAt:true,reviewNote:true},orderBy:{uploadedAt:'desc'}}},
+      select:{id:true,aureviaExchangeId:true,email:true,name:true,country:true,phone:true,phoneVerified:true,avatarKey:true,approvedTier:true,role:true,status:true,kycStatus:true,accountMode:true,depositEnabled:true,withdrawalEnabled:true,accountRestricted:true,restrictionReason:true,createdAt:true,kyc:{select:{legalName:true,dob:true,address:true,idType:true,idNumber:true,submittedAt:true,reviewedAt:true,reviewNote:true}},kycDocuments:{select:{id:true,kind:true,filename:true,mimeType:true,size:true,status:true,uploadedAt:true,reviewedAt:true,reviewNote:true},orderBy:{uploadedAt:'desc'}}},
       orderBy:{createdAt:'desc'},
       take:search?100:200,
     });
@@ -68,7 +68,8 @@ export async function GET(request:Request){
         approvedTier:user.approvedTier,
         accountStatus:user.status,
       });
-      return {...user,accountTier:tier.label};
+      const {avatarKey,...safeUser}=user;
+      return {...safeUser,hasAvatar:Boolean(avatarKey),accountTier:tier.label};
     });
     return NextResponse.json(usersWithTier,{headers:{'Cache-Control':'private, no-store'}});
   }catch{return NextResponse.json({error:'Forbidden'},{status:403})}

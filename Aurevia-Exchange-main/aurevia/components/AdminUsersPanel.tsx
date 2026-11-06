@@ -1,32 +1,50 @@
 'use client';
 
 import Image from 'next/image';
-import {FormEvent,useCallback,useEffect,useState} from 'react';
+import {FormEvent,useCallback,useEffect,useRef,useState} from 'react';
 import {Eye, Pencil,RefreshCw,Search,Trash2,UserRound} from 'lucide-react';
 import {SUPPORTED_CURRENCIES} from '@/lib/config/simulation';
 import ReceiptGenerator,{type ReceiptData} from '@/components/ReceiptGenerator';
 import AureviaExchangeId from '@/components/AureviaExchangeId';
 import AccountTierBadge from '@/components/AccountTierBadge';
 
-type AdminUser={id:string;aureviaExchangeId:string|null;email:string;name:string|null;phone:string|null;country:string|null;role:'USER'|'ADMIN';status:string;accountMode:'DEMO'|'REAL';accountTier:string;kycStatus:string;createdAt:string;depositEnabled:boolean;withdrawalEnabled:boolean;accountRestricted:boolean;restrictionReason:string|null};
+type AdminUser={id:string;aureviaExchangeId:string|null;email:string;name:string|null;phone:string|null;country:string|null;role:'USER'|'ADMIN';status:string;accountMode:'DEMO'|'REAL';accountTier:string;kycStatus:string;createdAt:string;depositEnabled:boolean;withdrawalEnabled:boolean;accountRestricted:boolean;restrictionReason:string|null;hasAvatar:boolean};
 type AdminLoginEvent={id:string;action:string;createdAt:string;metadata:{clientIp?:string|null;userAgent?:string|null;reason?:string|null}|null};
 type DeletionAssessment={user:{id:string;email:string;status:string;role:string};balances:Array<{accountMode:'DEMO'|'REAL';currency:string;amount:string}>;blockers:Array<{code:string;count:number}>;deletable:boolean;retainedRecords:{kycDocuments:number;taxDocuments:number;financialHistory:boolean;auditHistory:boolean;supportRecords:boolean}};
 type DeletionAudit={id:string;entityId:string|null;createdAt:string;metadata:{reason?:string}|null;actor:{id:string;email:string;name:string|null}|null};
-function AdminUserPhoto({userId,name}:{userId:string;name:string|null}){
+function AdminUserPhoto({userId,name,hasAvatar}:{userId:string;name:string|null;hasAvatar:boolean}){
+	const container=useRef<HTMLDivElement>(null);
 	const [url,setUrl]=useState('');
-	const [loaded,setLoaded]=useState(false);
+	const [requested,setRequested]=useState(false);
+	const [loading,setLoading]=useState(false);
+	const [error,setError]=useState('');
+	const [retry,setRetry]=useState(0);
 	useEffect(()=>{
+		if(!hasAvatar||requested)return;
+		const element=container.current;
+		if(!element)return;
+		if(!('IntersectionObserver' in window)){setRequested(true);return}
+		const observer=new IntersectionObserver(entries=>{
+			if(entries.some(entry=>entry.isIntersecting)){setRequested(true);observer.disconnect()}
+		});
+		observer.observe(element);
+		return()=>observer.disconnect();
+	},[hasAvatar,requested]);
+	useEffect(()=>{
+		if(!hasAvatar||!requested)return;
 		let active=true;
+		setLoading(true);setError('');
 		void fetch(`/api/profile/avatar?userId=${encodeURIComponent(userId)}`,{cache:'no-store'}).then(async response=>{
 			const result=await response.json();
 			if(!response.ok)throw new Error(result.error||'Unable to load profile photo.');
 			if(active)setUrl(typeof result.url==='string'?result.url:'');
-		}).catch(()=>{if(active)setUrl('')}).finally(()=>{if(active)setLoaded(true)});
+		}).catch(exception=>{if(active)setError(exception instanceof Error?exception.message:'Unable to load profile photo.')}).finally(()=>{if(active)setLoading(false)});
 		return()=>{active=false};
-	},[userId]);
-	return <div className="mb-3 flex items-center gap-3" aria-label={`${name||'User'} profile photo`}>
-		<span className="grid size-14 aspect-square shrink-0 place-items-center overflow-hidden rounded-full border border-white/10 bg-white/5">{url?<Image src={url} alt="" width={56} height={56} unoptimized className="profile-avatar-image"/>:<UserRound size={23} className="muted" aria-hidden="true"/>}</span>
-		<span className="text-xs muted">{loaded?(url?'Profile photo':'No profile photo available'):'Loading profile photo…'}</span>
+	},[hasAvatar,requested,retry,userId]);
+	const label=error?'Photo unavailable':loading?'Loading profile photo…':url?'Profile photo displayed':hasAvatar&&requested?'Profile photo unavailable':hasAvatar?'Profile photo available':'No profile photo available';
+	return <div className="flex min-w-36 items-center gap-2" aria-label={`${name||'User'} profile photo`} ref={container}>
+		<span className="grid size-12 aspect-square shrink-0 place-items-center overflow-hidden rounded-full border border-white/10 bg-white/5" title={label}>{url&&!error?<Image src={url} alt={`${name||'User'} profile photo`} width={48} height={48} unoptimized className="profile-avatar-image" onError={()=>{setUrl('');setError('The profile photo could not be displayed.')}}/>:<UserRound size={20} className="muted" aria-hidden="true"/>}</span>
+		<span className="text-xs muted" role={error?'status':undefined}>{label}{error&&<button type="button" className="ml-1 underline" onClick={()=>{setError('');setRequested(true);setRetry(value=>value+1)}}>Retry</button>}</span>
 	</div>;
 }
 
@@ -258,7 +276,7 @@ export default function AdminUsersPanel(){
 		<label className="mb-4 inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm"><input type="checkbox" checked={showDeleted} onChange={event=>setShowDeleted(event.target.checked)}/>Show deleted accounts</label>
 		<div className="overflow-hidden rounded-md border border-white/10">
 			{loading?<p className="account-empty" role="status">Loading accounts…</p>:users.length?<div className="divide-y divide-white/10">{users.map(user=><article className="p-4" key={user.id}>
-				<div className="flex flex-wrap items-center justify-between gap-3"><div className="min-w-0"><b className="block break-words">{user.name||'Unnamed account'} · {user.email}</b><small className="muted break-all">Internal ID: {user.id} · {user.role} · {user.accountMode} · {user.kycStatus} · {user.status}</small><div className="mt-1 flex flex-wrap items-center gap-2"><small className="break-all font-mono text-gold">Aurevia Exchange ID: {user.aureviaExchangeId||'Not assigned'}</small><AccountTierBadge tier={user.accountTier}/></div></div><div className="flex flex-wrap gap-2">
+				<div className="flex flex-wrap items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-3">{user.status==='ACTIVE'&&<AdminUserPhoto userId={user.id} name={user.name} hasAvatar={user.hasAvatar}/>}<div className="min-w-0"><b className="block break-words">{user.name||'Unnamed account'} · {user.email}</b><small className="muted break-all">Internal ID: {user.id} · {user.role} · {user.accountMode} · {user.kycStatus} · {user.status}</small><div className="mt-1 flex flex-wrap items-center gap-2"><small className="break-all font-mono text-gold">Aurevia Exchange ID: {user.aureviaExchangeId||'Not assigned'}</small><AccountTierBadge tier={user.accountTier}/></div></div></div><div className="flex flex-wrap gap-2">
 					<button type="button" className="btn min-h-10 bg-white/5" disabled={busy} onClick={()=>setExpandedUserId(expandedUserId===user.id?'':user.id)}><Eye size={14}/>View User</button>
 					{user.status!=='DELETED'&&<button type="button" className="btn min-h-10 bg-white/5" disabled={busy||user.status==='CLOSED'} onClick={()=>{setExpandedUserId(user.id);setEditingUserId(editingUserId===user.id?'':user.id);setEditDraft({name:user.name||'',country:user.country||'',phone:user.phone||''})}}><Pencil size={14}/>Edit User</button>}
 					{user.status==='DELETED'?<button type="button" className="btn min-h-10 bg-profit text-black" disabled={busy} onClick={()=>void updateDeletedStatus(user,'ACTIVE')}>{busyUserId===user.id?'Saving…':'Restore'}</button>:<><button type="button" className="btn min-h-10 bg-white/5" disabled={busy||user.status==='CLOSED'} onClick={()=>void toggleStatus(user)}>{busyUserId===user.id?'Saving…':user.status==='ACTIVE'?'Suspend Account':'Reactivate Account'}</button><button type="button" className="btn min-h-10 bg-loss text-black" disabled={busy||user.status==='CLOSED'} onClick={()=>void updateDeletedStatus(user,'DELETED')}><Trash2 size={14}/>Move to Deleted Items</button></>}
@@ -274,7 +292,7 @@ export default function AdminUsersPanel(){
 						<div className="flex gap-2 sm:col-span-3"><button className="btn bg-gold text-black" type="submit" disabled={busy}>{busyUserId===user.id?'Saving…':'Save profile'}</button><button className="btn bg-white/5" type="button" disabled={busy} onClick={()=>setEditingUserId('')}>Cancel</button></div>
 					</form>}
 					<dl className="mt-2 grid gap-2 text-xs sm:grid-cols-2"><div><dt className="muted">Country</dt><dd>{user.country||'Not set'}</dd></div><div><dt className="muted">Phone</dt><dd>{user.phone||'Not set'}</dd></div><div><dt className="muted">Created</dt><dd>{new Date(user.createdAt).toLocaleString()}</dd></div><div><dt className="muted">Deposit / withdrawal</dt><dd>{user.depositEnabled?'Enabled':'Disabled'} / {user.withdrawalEnabled?'Enabled':'Disabled'}</dd></div><div><dt className="muted">Account restriction</dt><dd>{user.accountRestricted?user.restrictionReason||'Restricted':'None'}</dd></div></dl>
-					<AdminUserPhoto userId={user.id} name={user.name}/>
+					{user.status!=='ACTIVE'&&<AdminUserPhoto userId={user.id} name={user.name} hasAvatar={user.hasAvatar}/>}
 					<AdminLoginHistory userId={user.id}/>
 					<div className="mt-4 flex flex-wrap gap-2">
 						<button className="btn min-h-10 bg-white/5" type="button" disabled={busy||user.status==='CLOSED'} onClick={()=>void updateAccountControl(user,'depositEnabled',!user.depositEnabled)}>{user.depositEnabled?'Disable deposits':'Enable deposits'}</button>

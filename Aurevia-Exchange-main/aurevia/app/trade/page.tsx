@@ -498,7 +498,7 @@ export default function Trade() {
                     <p className="trade-chart-note">{cur?.liveQuote?`Quote updated ${new Date(cur.liveQuote.updatedAt).toLocaleTimeString()}`:"Current market prices are required for REAL account orders."}</p>
                   </div>
                   :<>
-                    <PriceChart price={cur?.price ?? 0} instrumentId={cur?.id} running/>
+                    <PriceChart price={cur?.price ?? 0} instrumentId={cur?.id}/>
                     <p className="trade-chart-note">{translate('internalSimulatedMarket')}</p>
                   </>}
               </div>

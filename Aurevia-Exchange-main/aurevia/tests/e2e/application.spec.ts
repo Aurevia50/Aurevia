@@ -233,9 +233,10 @@ test('market view labels internal reference prices when no live provider is conf
 	expect(historyResponse.ok()).toBe(true);
 	expect((await historyResponse.json()).source).toBe('Aurevia Internal');
 	await page.goto('/markets');
+	await expect(page.getByRole('img',{name:'Interactive live market candlestick and volume chart'})).toBeVisible();
 	await expect(page.locator('.live-market-heading').first()).toContainText('INDICATIVE PRICES');
 	await expect(page.locator('.live-source-status')).toContainText('Price status: Indicative');
-	await expect(page.locator('.live-disclaimer')).toContainText('Internal reference prices are estimates, not executable quotes.');
+	await expect(page.locator('.live-disclaimer')).toContainText('Internal reference prices are indicative, not executable quotes.');
 });
 
 test('signed-in users can ask AI to explain unavailable quote and history sources without substituting data',async({page})=>{
@@ -2138,12 +2139,24 @@ test('administrator user and KYC actions persist and report protected actions',a
 	expect((await selfDemotion.json()).error).toContain('roles are managed separately');
 	const frozen=await page.request.patch('/api/admin/users',{data:{userId:user.id,status:'FROZEN'}});
 	expect(frozen.ok()).toBeTruthy();
+	await page.route('**/api/admin/users**',async route=>{
+		if(route.request().method()!=='GET')return route.continue();
+		const response=await route.fetch();
+		const accounts=await response.json() as Array<{id:string;hasAvatar:boolean}>;
+		await route.fulfill({response,json:accounts.map(account=>account.id===user.id?{...account,hasAvatar:true}:account)});
+	});
+	await page.route(/\/api\/profile\/avatar\?userId=/,route=>{
+		const requestedId=new URL(route.request().url()).searchParams.get('userId');
+		if(requestedId!==user.id)return route.continue();
+		return route.fulfill({json:{url:'/aurevia-logo.png'}});
+	});
 	await page.goto('/admin/users');
 	await expect(page.getByRole('heading',{name:'User accounts'})).toBeVisible();
 	const userRow=page.locator('article').filter({hasText:fixture('USER_EMAIL')}).first();
 	await expect(userRow.getByRole('button',{name:'Reactivate Account'})).toBeVisible();
 	await userRow.getByRole('button',{name:'Reactivate Account'}).click();
 	await expect(userRow.getByRole('button',{name:'Suspend Account'})).toBeVisible();
+	await expect(userRow.getByRole('img',{name:`${user.name||'User'} profile photo`})).toBeVisible();
 	await expect(userRow.getByRole('button',{name:/Make (?:admin|user)/})).toHaveCount(0);
 	const userRoleChange=await page.request.patch('/api/admin/users',{data:{userId:user.id,role:'ADMIN'}});
 	expect(userRoleChange.status()).toBe(409);

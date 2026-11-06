@@ -108,18 +108,23 @@ function referenceMarketQuote(asset:LiveMarketAsset,now:number):MarketQuote{
 }
 
 function marketHistoryFromQuote(asset:LiveMarketAsset,timeframe:TimeframeId,quote:MarketQuote){
-	const now=Math.floor(Date.now()/1000);
 	const span=timeframeDays[timeframe]*86_400;
-	const step=span/239;
-	const candles:MarketCandle[]=Array.from({length:240},(_,index)=>{
-		const time=Math.floor(now-span+step*index);
-		const center=internalPriceAt(asset,quote.price,(now-span+step*index)*1000);
-		const next=internalPriceAt(asset,quote.price,(now-span+step*(index+1))*1000);
-		const open=index?internalPriceAt(asset,quote.price,(now-span+step*(index-1))*1000):center;
-		const close=index===239?quote.price:next;
+	const interval=timeframeIntervals[timeframe];
+	const [,amount,unit]=interval.match(/^(\d+)(m|h|d|w|mo)$/)||[];
+	const unitSeconds:Record<string,number>={m:60,h:3_600,d:86_400,w:604_800,mo:2_592_000};
+	const step=Number(amount)*unitSeconds[unit];
+	const count=Math.max(1,Math.ceil(span/step));
+	const lastTime=Math.floor(Date.now()/1000/step)*step;
+	const firstTime=lastTime-(count-1)*step;
+	const candles:MarketCandle[]=Array.from({length:count},(_,index)=>{
+		const time=firstTime+index*step;
+		const center=internalPriceAt(asset,quote.price,(time+step/2)*1000);
+		const next=internalPriceAt(asset,quote.price,(time+step)*1000);
+		const open=index?internalPriceAt(asset,quote.price,(time-step/2)*1000):center;
+		const close=index===count-1?quote.price:next;
 		return {time,open,high:Math.max(open,close)*1.0008,low:Math.min(open,close)*0.9992,close,volume:null};
 	});
-	return {quote,candles,timeframe,interval:timeframeIntervals[timeframe],source:'Aurevia Internal'};
+	return {quote,candles,timeframe,interval,source:'Aurevia Internal'};
 }
 
 export async function getInternalMarketHistory(asset:LiveMarketAsset,timeframe:TimeframeId){
