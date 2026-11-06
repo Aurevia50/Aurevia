@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "crons": [
+    {
+      "path": "/api/cron/market-tick",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/kyc-email-delivery",
+      "schedule": "* * * * *"
+    }
+  ]
+}

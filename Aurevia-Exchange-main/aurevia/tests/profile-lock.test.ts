@@ -1,0 +1,21 @@
+import {describe,expect,it} from 'vitest';
+import {isProfileLocked,profileEditDeadline} from '../lib/profile-lock';
+
+describe('verified profile edit window',()=>{
+	it('locks edits for two calendar months after verification',()=>{
+		const verifiedAt=new Date('2026-01-20T12:00:00.000Z');
+		expect(profileEditDeadline(verifiedAt)?.toISOString()).toBe('2026-03-20T12:00:00.000Z');
+		expect(isProfileLocked(verifiedAt,new Date('2026-01-20T12:00:01.000Z'))).toBe(true);
+		expect(isProfileLocked(verifiedAt,new Date('2026-03-19T23:59:59.999Z'))).toBe(true);
+		expect(isProfileLocked(verifiedAt,new Date('2026-03-20T12:00:00.000Z'))).toBe(false);
+	});
+
+	it('clamps month-end verification dates to the end of the target month',()=>{
+		expect(profileEditDeadline(new Date('2026-01-31T00:00:00.000Z'))?.toISOString()).toBe('2026-03-31T00:00:00.000Z');
+	});
+
+	it('keeps accounts without a verification timestamp editable',()=>{
+		expect(profileEditDeadline(null)).toBeNull();
+		expect(isProfileLocked(null)).toBe(false);
+	});
+});

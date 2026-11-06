@@ -1,0 +1,2 @@
+import Link from 'next/link';
+export default function NotFound(){return <main className="flex min-h-screen items-center justify-center bg-black px-6"><div className="text-center"><div className="gold text-sm font-bold tracking-[.25em]">AUREVIA EXCHANGE</div><h1 className="mt-3 text-5xl font-black">404</h1><p className="mt-2 muted">The page you requested does not exist.</p><Link href="/" className="btn mt-6 inline-flex bg-gold text-black">Return home</Link></div></main>}

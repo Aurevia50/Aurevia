@@ -1,0 +1,1 @@
+ALTER TABLE "PaymentMethod" ADD COLUMN "demoOnly" BOOLEAN NOT NULL DEFAULT false;

@@ -1,0 +1,1 @@
+{"note":"The UI uses lightweight Tailwind components and Lucide icons to keep the foundation deployable without a generated shadcn registry directory. shadcn/ui components can be added incrementally without changing the backend contracts."}

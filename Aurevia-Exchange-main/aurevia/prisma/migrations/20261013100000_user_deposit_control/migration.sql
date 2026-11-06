@@ -1,0 +1,2 @@
+ALTER TABLE "User"
+ADD COLUMN "depositEnabled" BOOLEAN NOT NULL DEFAULT true;

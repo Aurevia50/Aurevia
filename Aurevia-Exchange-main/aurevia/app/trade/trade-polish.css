@@ -1,0 +1,195 @@
+.trade-workspace{
+	width:min(100% - 48px,1480px);
+	padding-top:clamp(28px,4vw,48px);
+}
+
+.trade-page-heading{
+	align-items:flex-start;
+	margin-bottom:26px;
+}
+
+.trade-page-heading .account-kicker{
+	color:#c7ad71;
+	font-size:10px;
+	letter-spacing:.16em;
+}
+
+.trade-page-heading h1{
+	margin-top:9px;
+	font-size:clamp(34px,4vw,46px);
+	letter-spacing:-.025em;
+}
+
+.trade-page-heading>div>p{
+	max-width:68ch;
+	margin-top:9px;
+	color:#9ba99e;
+	font-size:13px;
+	line-height:1.65;
+}
+
+.trade-page-heading>.status-pill{
+	flex:none;
+	margin-top:6px;
+	padding:9px 12px;
+	border:1px solid rgba(197,164,107,.28);
+	border-radius:6px;
+	background:rgba(197,164,107,.08);
+	color:#e1c98f;
+	font-size:9px;
+	letter-spacing:.08em;
+}
+
+.trade-workspace-grid{
+	align-items:start;
+}
+
+.trade-workspace .trade-market-card,
+.trade-workspace .trade-ticket-card,
+.trade-workspace .trade-history-card{
+	border-color:rgba(195,207,191,.14);
+	border-radius:10px;
+	background:linear-gradient(145deg,rgba(17,33,23,.97),rgba(9,19,13,.99));
+	box-shadow:0 18px 48px rgba(0,0,0,.2),inset 0 1px rgba(255,255,255,.025);
+}
+
+.trade-workspace .trade-market-card{padding:clamp(16px,2vw,24px)}
+.trade-workspace .trade-ticket-card{position:sticky;top:92px;padding:22px}
+.trade-workspace .trade-history-card{padding:22px}
+.trade-workspace .trade-market-card.card.min-h-\[650px\]{min-height:0}
+.trade-workspace .account-panel-title h2{color:#f0f2eb;font-size:17px}
+.trade-workspace .account-panel-subtitle{margin-top:5px;color:#95a398;font-size:11px;line-height:1.5}
+
+.trade-workspace .trade-market-select{
+	gap:8px;
+	padding-bottom:10px;
+	scrollbar-color:rgba(197,164,107,.38) transparent;
+}
+
+.trade-workspace .trade-market-select button{
+	min-height:43px;
+	padding-inline:13px;
+	border-color:rgba(195,207,191,.14);
+	border-radius:6px;
+	background:rgba(255,255,255,.025);
+	font-size:11px;
+	transition:border-color .18s ease,background .18s ease,color .18s ease;
+}
+
+.trade-workspace .trade-market-select button:hover{border-color:rgba(197,164,107,.32);background:rgba(197,164,107,.06)}
+.trade-workspace .trade-market-select button[aria-pressed=true]{border-color:rgba(197,164,107,.54);background:rgba(197,164,107,.12);color:#e8d39f}
+.trade-chart-panel,.trade-orderbook{border-color:rgba(195,207,191,.1);border-radius:8px;background:rgba(4,12,7,.38)}
+.trade-chart-panel{padding:17px}
+.trade-orderbook{padding:15px}
+.trade-chart-header .status-pill{font-size:9px}
+.trade-last-price{font-size:clamp(24px,3vw,34px);font-variant-numeric:tabular-nums;letter-spacing:-.025em}
+.trade-chart-timeframes{gap:6px;margin-block:15px 7px}
+.trade-chart-timeframes button{min-height:34px;padding-inline:11px;border-radius:5px;font-size:10px}
+.trade-chart-note{font-size:10px;line-height:1.65}
+.trade-orderbook h3{margin:0;color:#e5ebe2;font-size:13px}
+.trade-orderbook .text-xs{line-height:1.7}
+.trade-orderbook .text-xs>p{margin:0 0 12px;line-height:1.55}
+.trade-estimate{gap:10px;padding:14px;border-radius:7px;background:rgba(255,255,255,.025)}
+.trade-estimate>div{align-items:flex-start}
+.trade-estimate span{font-size:10px;line-height:1.5}
+.trade-estimate b{font-size:11px}
+.trade-estimate-note{font-size:9px;line-height:1.65}
+.trade-workspace .trade-ticket-card .account-label{gap:7px;color:#b8c2b8;font-size:11px}
+.trade-workspace .trade-ticket-card .input{min-height:44px;border-radius:6px;font-size:13px}
+.trade-workspace .trade-ticket-card .btn[type=submit]{min-height:48px;margin-top:3px;border-radius:6px;font-size:12px;letter-spacing:.02em}
+.trade-workspace .trade-ticket-card button[aria-pressed=true]{box-shadow:inset 0 0 0 1px rgba(255,255,255,.13)}
+
+.trade-message,.trade-inline-notice,.trade-chart-unavailable{
+	display:flex;
+	align-items:flex-start;
+	gap:10px;
+	padding:11px 12px;
+	border:1px solid rgba(195,207,191,.15);
+	border-radius:7px;
+	font-size:11px;
+	line-height:1.55;
+}
+
+.trade-message{margin-top:13px}
+.trade-message p{flex:1;margin:0}
+.trade-message-icon{display:flex;flex:none;margin-top:1px}
+.trade-message>button,.trade-inline-notice>button,.trade-chart-unavailable>button{
+	display:grid;
+	width:28px;
+	height:28px;
+	flex:none;
+	place-items:center;
+	margin:-5px -5px 0 0;
+	border:0;
+	border-radius:5px;
+	background:transparent;
+	color:inherit;
+	cursor:pointer;
+}
+.trade-message>button:hover,.trade-inline-notice>button:hover,.trade-chart-unavailable>button:hover{background:rgba(255,255,255,.08)}
+.trade-message.is-error,.trade-inline-notice{border-color:rgba(232,126,126,.23);background:rgba(117,43,54,.12);color:#e5b7b2}
+.trade-message.is-success{border-color:rgba(105,201,154,.22);background:rgba(42,105,73,.12);color:#a7d8b8}
+.trade-message.is-info,.trade-chart-unavailable{border-color:rgba(197,164,107,.24);background:rgba(143,111,46,.1);color:#ddc990}
+.trade-chart-unavailable{justify-content:space-between;margin-top:10px}
+.trade-inline-notice{align-items:center;margin-top:12px}
+.trade-inline-notice>span,.trade-chart-unavailable>span{flex:1}
+
+.trade-clear-failed{
+	display:inline-flex;
+	min-height:36px;
+	align-items:center;
+	gap:7px;
+	padding:7px 10px;
+	border:1px solid rgba(195,207,191,.15);
+	border-radius:6px;
+	background:rgba(255,255,255,.025);
+	color:#b3beb3;
+	font:inherit;
+	font-size:10px;
+	cursor:pointer;
+	transition:border-color .18s ease,background .18s ease,color .18s ease;
+}
+.trade-clear-failed:hover:not(:disabled){border-color:rgba(232,126,126,.35);background:rgba(117,43,54,.12);color:#edb3ae}
+.trade-clear-failed:disabled{opacity:.45;cursor:not-allowed}
+.trade-clear-failed>span{display:grid;min-width:18px;height:18px;place-items:center;border-radius:10px;background:rgba(232,126,126,.14);color:#edb3ae;font-size:9px}
+.trade-history-card .account-panel-title{gap:12px}
+.trade-history-card .account-table-wrap{margin-top:15px;border:1px solid rgba(195,207,191,.1);border-radius:7px}
+.trade-history-card .account-table th{color:#9ba99e;font-size:9px;letter-spacing:.06em}
+.trade-history-card .account-table td{font-size:11px}
+.trade-order-status{border-color:rgba(195,207,191,.12);background:rgba(255,255,255,.035);font-size:9px}
+.trade-order-status.is-filled{border-color:rgba(105,201,154,.22);color:#91d1a7}
+.trade-order-status.is-rejected,.trade-order-status.is-failed{border-color:rgba(232,126,126,.24);color:#e4a6a2}
+.trade-order-status.is-open,.trade-order-status.is-partially_filled{border-color:rgba(197,164,107,.24);color:#dfc487}
+.trade-order-status.is-cancelled,.trade-order-status.is-expired{color:#a9b2a8}
+.trade-history-card .account-empty{margin-top:14px;border-radius:7px;line-height:1.6}
+
+@media(max-width:1279px){
+	.trade-workspace .trade-ticket-card{position:static}
+}
+
+@media(max-width:760px){
+	.trade-workspace{width:calc(100% - 32px);padding-top:27px}
+	.trade-page-heading{gap:12px;margin-bottom:19px}
+	.trade-page-heading>.status-pill{max-width:145px;text-align:center;line-height:1.4}
+	.trade-workspace .trade-market-card,.trade-workspace .trade-ticket-card,.trade-workspace .trade-history-card{padding:16px}
+	.trade-workspace .trade-market-card.card.min-h-\[650px\]{min-height:0}
+	.trade-workspace-grid{gap:13px}
+	.trade-chart-panel{padding:12px}
+	.trade-orderbook{max-height:300px}
+	.trade-history-card .account-panel-title{align-items:flex-start}
+	.trade-clear-failed{min-height:34px;padding:6px 8px;font-size:9px}
+}
+
+@media(max-width:480px){
+	.trade-workspace{width:calc(100% - 24px)}
+	.trade-page-heading h1{font-size:32px}
+	.trade-page-heading>div>p{font-size:11px}
+	.trade-page-heading>.status-pill{max-width:116px;padding:7px;font-size:8px}
+	.trade-workspace .trade-history-card .account-panel-title{flex-wrap:wrap}
+	.trade-clear-failed{margin-left:auto}
+	.trade-workspace .trade-chart-panel{padding:14px}
+}
+
+@media(prefers-reduced-motion:reduce){
+	.trade-workspace *,.trade-workspace *::before,.trade-workspace *::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}

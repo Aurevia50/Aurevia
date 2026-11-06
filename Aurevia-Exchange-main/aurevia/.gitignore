@@ -1,0 +1,17 @@
+node_modules/
+.next/
+.next-dev/
+.next-e2e/
+.env
+.env.*
+!.env.example
+coverage/
+test-results/
+tools/playwright/browsers/
+/backups/
+*.log
+*.tsbuildinfo
+.vercel/
+uploads/private/
+*.pem
+*.key

@@ -1,0 +1,3 @@
+'use client';
+import {useEffect} from 'react';
+export default function Error({error,reset}:{error:Error&{digest?:string};reset:()=>void}){useEffect(()=>{console.error(error)},[error]);return <main className="flex min-h-screen items-center justify-center bg-black px-6"><div className="card max-w-md p-7 text-center"><div className="gold text-sm font-bold tracking-[.25em]">AUREVIA EXCHANGE</div><h1 className="mt-3 text-2xl font-black">Something went wrong</h1><p className="mt-2 muted">The page could not complete the requested operation.</p><button onClick={()=>reset()} className="btn mt-6 bg-gold text-black">Try again</button></div></main>}

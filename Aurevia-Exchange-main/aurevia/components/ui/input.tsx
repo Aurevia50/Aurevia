@@ -1,0 +1,1 @@
+import {InputHTMLAttributes} from 'react';import {cn} from '@/lib/utils';export function Input({className,...p}:InputHTMLAttributes<HTMLInputElement>){return <input className={cn('input',className)} {...p}/>}
