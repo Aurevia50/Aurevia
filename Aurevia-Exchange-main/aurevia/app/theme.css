@@ -363,7 +363,7 @@ html[data-theme-name] .theme-toggle-error{color:var(--theme-negative)}
 		border:0;
 		background:rgba(0,0,0,.54);
 	}
-	html[data-theme-name] .admin-topbar{left:0;gap:12px;padding-inline:clamp(12px,2vw,24px)}
+	html[data-theme-name] .admin-topbar{left:0;z-index:103;gap:12px;padding-inline:clamp(12px,2vw,24px)}
 	html[data-theme-name] .admin-menu-button{
 		display:grid;
 		width:38px;

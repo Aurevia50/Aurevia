@@ -1174,6 +1174,12 @@ test('notifications bell, unread state, mark one/all, and history persist',async
 	await bell.click();
 	const dialog=page.getByRole('dialog',{name:'Notifications'});
 	await expect(dialog).toBeVisible();
+	const notificationZoomBlocked=await page.evaluate(()=>{
+		const event=new KeyboardEvent('keydown',{key:'-',ctrlKey:true,cancelable:true});
+		document.dispatchEvent(event);
+		return event.defaultPrevented;
+	});
+	expect(notificationZoomBlocked).toBe(true);
 	const popoverBounds=await dialog.boundingBox();
 	expect(popoverBounds?.height).toBeLessThan(844*.7);
 	expect(popoverBounds?.width).toBeLessThan(390);

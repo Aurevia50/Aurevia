@@ -62,6 +62,38 @@ test.describe('public routes and responsive layout',()=>{
 	}
 });
 
+test('zoom is locked for regular pages and available in admin',async({page})=>{
+	await page.goto('/markets');
+	const regularViewport=await page.locator('meta[name="viewport"]').getAttribute('content');
+	expect(regularViewport).toContain('maximum-scale=1');
+	expect(regularViewport).toContain('user-scalable=no');
+	const regularZoomBlocked=await page.evaluate(()=>{
+		const event=new KeyboardEvent('keydown',{key:'-',ctrlKey:true,cancelable:true});
+		document.dispatchEvent(event);
+		return event.defaultPrevented;
+	});
+	expect(regularZoomBlocked).toBe(true);
+
+	await page.goto('/admin/login');
+	const adminViewport=await page.locator('meta[name="viewport"]').getAttribute('content');
+	expect(adminViewport).toContain('width=device-width');
+	expect(adminViewport).toContain('maximum-scale=5');
+	expect(adminViewport).toContain('user-scalable=yes');
+	const adminZoomAvailable=await page.evaluate(()=>{
+		const event=new KeyboardEvent('keydown',{key:'-',ctrlKey:true,cancelable:true});
+		document.dispatchEvent(event);
+		return event.defaultPrevented;
+	});
+	expect(adminZoomAvailable).toBe(false);
+});
+
+test('education header fits mobile screens without zooming out',async({page})=>{
+	await page.setViewportSize({width:320,height:800});
+	await page.goto('/education');
+	await expect(page.getByRole('heading',{name:'Build your market understanding.'})).toBeVisible();
+	await expectNoHorizontalOverflow(page);
+});
+
 test('homepage keeps Stories in navigation and off the landing content',async({page})=>{
 	for(const width of [320,375,414]){
 		await page.setViewportSize({width,height:844});
