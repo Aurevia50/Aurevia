@@ -93,7 +93,7 @@ export async function GET(){
 			`),
 			db.user.findMany({
 				where:activeUsersWhere,
-				select:{id:true,name:true,email:true,accountMode:true,kycStatus:true,status:true,createdAt:true},
+				select:{id:true,name:true,email:true,accountMode:true,kycStatus:true,status:true,createdAt:true,avatarKey:true},
 				orderBy:{createdAt:'desc'},
 				take:8,
 			}),
@@ -172,7 +172,7 @@ export async function GET(){
 			daily:currentDaily,
 			kyc,
 			accountTypes,
-			recentUsers,
+			recentUsers:recentUsers.map(({avatarKey,...user})=>({...user,hasAvatar:Boolean(avatarKey)})),
 			recentActivity,
 			archivedActivity,
 			dismissedActivity:dismissedActivity.map(item=>item.auditLog),

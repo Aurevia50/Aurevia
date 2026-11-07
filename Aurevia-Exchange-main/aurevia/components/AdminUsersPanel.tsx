@@ -1,53 +1,17 @@
 'use client';
 
-import Image from 'next/image';
-import {FormEvent,useCallback,useEffect,useRef,useState} from 'react';
-import {Eye, Pencil,RefreshCw,Search,Trash2,UserRound} from 'lucide-react';
+import {FormEvent,useCallback,useEffect,useState} from 'react';
+import {Eye, Pencil,RefreshCw,Search,Trash2} from 'lucide-react';
 import {SUPPORTED_CURRENCIES} from '@/lib/config/simulation';
 import ReceiptGenerator,{type ReceiptData} from '@/components/ReceiptGenerator';
 import AureviaExchangeId from '@/components/AureviaExchangeId';
 import AccountTierBadge from '@/components/AccountTierBadge';
+import AdminUserPhoto from '@/components/AdminUserPhoto';
 
 type AdminUser={id:string;aureviaExchangeId:string|null;email:string;name:string|null;phone:string|null;country:string|null;role:'USER'|'ADMIN';status:string;accountMode:'DEMO'|'REAL';accountTier:string;kycStatus:string;createdAt:string;depositEnabled:boolean;withdrawalEnabled:boolean;accountRestricted:boolean;restrictionReason:string|null;hasAvatar:boolean};
 type AdminLoginEvent={id:string;action:string;createdAt:string;metadata:{clientIp?:string|null;userAgent?:string|null;reason?:string|null}|null};
 type DeletionAssessment={user:{id:string;email:string;status:string;role:string};balances:Array<{accountMode:'DEMO'|'REAL';currency:string;amount:string}>;blockers:Array<{code:string;count:number}>;deletable:boolean;retainedRecords:{kycDocuments:number;taxDocuments:number;financialHistory:boolean;auditHistory:boolean;supportRecords:boolean}};
 type DeletionAudit={id:string;entityId:string|null;createdAt:string;metadata:{reason?:string}|null;actor:{id:string;email:string;name:string|null}|null};
-function AdminUserPhoto({userId,name,hasAvatar}:{userId:string;name:string|null;hasAvatar:boolean}){
-	const container=useRef<HTMLDivElement>(null);
-	const [url,setUrl]=useState('');
-	const [requested,setRequested]=useState(false);
-	const [loading,setLoading]=useState(false);
-	const [error,setError]=useState('');
-	const [retry,setRetry]=useState(0);
-	useEffect(()=>{
-		if(!hasAvatar||requested)return;
-		const element=container.current;
-		if(!element)return;
-		if(!('IntersectionObserver' in window)){setRequested(true);return}
-		const observer=new IntersectionObserver(entries=>{
-			if(entries.some(entry=>entry.isIntersecting)){setRequested(true);observer.disconnect()}
-		});
-		observer.observe(element);
-		return()=>observer.disconnect();
-	},[hasAvatar,requested]);
-	useEffect(()=>{
-		if(!hasAvatar||!requested)return;
-		let active=true;
-		setLoading(true);setError('');
-		void fetch(`/api/profile/avatar?userId=${encodeURIComponent(userId)}`,{cache:'no-store'}).then(async response=>{
-			const result=await response.json();
-			if(!response.ok)throw new Error(result.error||'Unable to load profile photo.');
-			if(active)setUrl(typeof result.url==='string'?result.url:'');
-		}).catch(exception=>{if(active)setError(exception instanceof Error?exception.message:'Unable to load profile photo.')}).finally(()=>{if(active)setLoading(false)});
-		return()=>{active=false};
-	},[hasAvatar,requested,retry,userId]);
-	const label=error?'Photo unavailable':loading?'Loading profile photo…':url?'Profile photo displayed':hasAvatar&&requested?'Profile photo unavailable':hasAvatar?'Profile photo available':'No profile photo available';
-	return <div className="flex min-w-36 items-center gap-2" aria-label={`${name||'User'} profile photo`} ref={container}>
-		<span className="grid size-12 aspect-square shrink-0 place-items-center overflow-hidden rounded-full border border-white/10 bg-white/5" title={label}>{url&&!error?<Image src={url} alt={`${name||'User'} profile photo`} width={48} height={48} unoptimized className="profile-avatar-image" onError={()=>{setUrl('');setError('The profile photo could not be displayed.')}}/>:<UserRound size={20} className="muted" aria-hidden="true"/>}</span>
-		<span className="text-xs muted" role={error?'status':undefined}>{label}{error&&<button type="button" className="ml-1 underline" onClick={()=>{setError('');setRequested(true);setRetry(value=>value+1)}}>Retry</button>}</span>
-	</div>;
-}
-
 type Adjustment={accountMode:'DEMO'|'REAL';currency:(typeof SUPPORTED_CURRENCIES)[number];amount:string;direction:'CREDIT'|'DEBIT';category:'ADMIN_ALLOCATION'|'CORRECTION'|'PROMOTIONAL'|'REVERSAL';reason:string;idempotencyKey:string};
 const emptyAdjustment=(accountMode:'DEMO'|'REAL'):Adjustment=>({accountMode,currency:'USD',amount:'',direction:'CREDIT',category:'ADMIN_ALLOCATION',reason:'',idempotencyKey:''});
 function AdminLoginHistory({userId}:{userId:string}){

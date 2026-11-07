@@ -338,6 +338,47 @@ html[data-theme-name] .theme-toggle-error{color:var(--theme-negative)}
 .theme-toggle{flex-wrap:wrap}
 .settings-appearance-control .theme-toggle{max-width:100%}
 .settings-appearance-control{align-items:flex-start}
+
+html[data-theme-name] .admin-scope :is(.account-panel,.card,.admin-panel,.admin-metric-card,.admin-quick-actions){
+	border-color:var(--theme-border);
+	border-radius:8px;
+	background:var(--theme-surface);
+	box-shadow:var(--theme-shadow);
+}
+html[data-theme-name] .admin-scope .account-heading{
+	padding:18px 22px;
+	border-color:var(--theme-border);
+	border-radius:8px;
+	background:linear-gradient(115deg,var(--theme-surface),var(--theme-page-secondary));
+}
+html[data-theme-name] .admin-scope .admin-panel{padding:15px}
+html[data-theme-name] .admin-scope .admin-metric-card{padding:14px}
+html[data-theme-name] .admin-scope .admin-dashboard-heading h1,
+html[data-theme-name] .admin-scope .account-heading h1{font-size:32px;letter-spacing:0}
+html[data-theme-name] .admin-scope .admin-panel-heading h2{font-size:18px}
+html[data-theme-name] .admin-scope .admin-panel-heading p:not(.admin-eyebrow){font-size:11px}
+html[data-theme-name] .admin-scope .admin-dashboard-table th{font-size:9px}
+html[data-theme-name] .admin-scope .admin-dashboard-table td{font-size:10px}
+html[data-theme-name] .admin-scope main.account-page :is(.account-label,input,select,textarea,.input){font-size:12px}
+html[data-theme-name] .admin-scope main.account-page .btn{font-size:11px}
+html[data-theme-name] .admin-scope :is(.admin-metric-icon,.admin-mode-icon,.admin-activity-marker){
+	border:1px solid var(--theme-border);
+	box-shadow:inset 0 1px color-mix(in srgb,var(--theme-text) 12%,transparent),0 4px 9px color-mix(in srgb,var(--theme-page) 32%,transparent);
+}
+html[data-theme-name] .admin-scope svg.lucide{
+	filter:drop-shadow(0 1px 0 color-mix(in srgb,var(--theme-text) 20%,transparent)) drop-shadow(0 3px 4px color-mix(in srgb,var(--theme-page) 38%,transparent));
+	transform:perspective(90px) rotateX(8deg);
+	transition:transform .18s ease,filter .18s ease;
+}
+html[data-theme-name] .admin-scope :is(button,a):hover svg.lucide{
+	filter:drop-shadow(0 2px 2px color-mix(in srgb,var(--theme-page) 35%,transparent));
+	transform:perspective(90px) rotateX(0) translateY(-1px);
+}
+@media(max-width:760px){
+	html[data-theme-name] .admin-scope .account-heading{padding:16px}
+	html[data-theme-name] .admin-scope .admin-dashboard-heading h1,
+	html[data-theme-name] .admin-scope .account-heading h1{font-size:27px}
+}
 .user-more-theme{display:grid;gap:8px;padding:12px 16px;border-top:1px solid var(--theme-divider)}
 .user-more-theme>span{color:var(--theme-text-secondary);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 .admin-theme-preference{display:none}

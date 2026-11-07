@@ -3,6 +3,7 @@
 import {useCallback,useEffect,useMemo,useState} from 'react';
 import Link from 'next/link';
 import {Activity,ArrowDownRight,ArrowRight,ArrowUpRight,BriefcaseBusiness,CheckCircle2,RefreshCw,Send,Settings,ShieldCheck,Sparkles,UsersRound,WalletCards} from 'lucide-react';
+import AdminUserPhoto from '@/components/AdminUserPhoto';
 
 type DashboardData={
 	generatedAt:string;
@@ -15,7 +16,7 @@ type DashboardData={
 	daily:Array<{date:string;depositsUsd:number;withdrawalsUsd:number}>;
 	kyc:{verified:number;pending:number;rejected:number};
 	accountTypes:{DEMO:number;REAL:number};
-	recentUsers:Array<{id:string;name:string|null;email:string;accountMode:'DEMO'|'REAL';kycStatus:string;status:string;createdAt:string}>;
+	recentUsers:Array<{id:string;name:string|null;email:string;accountMode:'DEMO'|'REAL';kycStatus:string;status:string;createdAt:string;hasAvatar:boolean}>;
 	recentActivity:DashboardActivity[];
 	archivedActivity:DashboardActivity[];
 	dismissedActivity:DashboardActivity[];
@@ -295,7 +296,7 @@ export default function AdminDashboard(){
 			<div className="admin-dashboard-bottom-grid">
 				<section className="admin-panel admin-recent-users" aria-labelledby="admin-recent-users-heading">
 					<header className="admin-panel-heading"><div><p className="admin-eyebrow">USER ACCOUNTS</p><h2 id="admin-recent-users-heading">Recent users</h2></div><Link href="/admin/users" className="admin-panel-link">All users <ArrowRight size={14}/></Link></header>
-					<div className="admin-table-wrap"><table className="admin-dashboard-table"><thead><tr><th>User</th><th>Mode</th><th>KYC</th><th>Joined</th><th><span className="sr-only">View user</span></th></tr></thead><tbody>{data.recentUsers.map(user=><tr key={user.id}><td><Link href={`/admin/users?search=${encodeURIComponent(user.email)}`} className="admin-user-link"><span className="admin-user-avatar">{(user.name||user.email).slice(0,1).toUpperCase()}</span><span><b>{user.name||'Unnamed user'}</b><small>{user.email}</small></span></Link></td><td><span className={`admin-mode-tag ${user.accountMode.toLowerCase()}`}>{user.accountMode}</span></td><td><span className={`admin-kyc-tag ${user.kycStatus.toLowerCase()}`}>{user.kycStatus.replaceAll('_',' ')}</span></td><td>{new Date(user.createdAt).toLocaleDateString()}</td><td><Link href={`/admin/users?search=${encodeURIComponent(user.email)}`} className="admin-row-action">View <ArrowRight size={13}/></Link></td></tr>)}</tbody></table></div>
+					<div className="admin-table-wrap"><table className="admin-dashboard-table"><thead><tr><th>User</th><th>Mode</th><th>KYC</th><th>Joined</th><th><span className="sr-only">View user</span></th></tr></thead><tbody>{data.recentUsers.map(user=><tr key={user.id}><td><Link href={`/admin/users?search=${encodeURIComponent(user.email)}`} className="admin-user-link"><AdminUserPhoto userId={user.id} name={user.name} hasAvatar={user.hasAvatar} compact/><span><b>{user.name||'Unnamed user'}</b><small>{user.email}</small></span></Link></td><td><span className={`admin-mode-tag ${user.accountMode.toLowerCase()}`}>{user.accountMode}</span></td><td><span className={`admin-kyc-tag ${user.kycStatus.toLowerCase()}`}>{user.kycStatus.replaceAll('_',' ')}</span></td><td>{new Date(user.createdAt).toLocaleDateString()}</td><td><Link href={`/admin/users?search=${encodeURIComponent(user.email)}`} className="admin-row-action">View <ArrowRight size={13}/></Link></td></tr>)}</tbody></table></div>
 					{data.recentUsers.length===0&&<p className="admin-empty-state">No active users.</p>}
 				</section>
 				<section className="admin-panel admin-activity-panel" aria-labelledby="admin-activity-heading">
