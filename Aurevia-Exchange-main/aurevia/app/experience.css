@@ -11,9 +11,9 @@
 
 html{scroll-behavior:smooth;background:var(--color-ink)}
 body{margin:0;overflow-x:clip;font-family:"Avenir Next",Avenir,"Segoe UI",sans-serif;color:var(--color-text-primary);background:var(--color-ink)}
-.admin-scope{min-width:1280px;min-height:100vh}
+.admin-scope{min-width:0;min-height:100vh}
 @media(max-width:1279px){.admin-scope:has(.admin-login-scene){width:100%;min-width:0}}
-html:has(.admin-scope),body:has(.admin-scope){overflow-x:auto}
+html:has(.admin-scope),body:has(.admin-scope){overflow-x:clip}
 ::selection{background:rgba(212,167,44,.3);color:#fff}
 a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid color-mix(in srgb,var(--color-gold) 65%,white);outline-offset:3px}
 .card{border-radius:8px;border-color:var(--color-border);background:linear-gradient(145deg,rgba(17,35,24,.96),rgba(8,19,12,.98));box-shadow:0 18px 48px rgba(0,0,0,.24)}
@@ -2782,6 +2782,18 @@ body:has(.admin-shell-chrome) main.account-page{width:calc(100% - 258px);max-wid
 .admin-quick-action>svg:last-child{color:#79877d}
 .admin-quick-action:hover{border-color:rgba(212,167,44,.32);background:rgba(212,167,44,.06);color:#f4e7bc}
 .admin-dashboard-bottom-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.75fr);gap:14px;margin-top:14px}
+@media(max-width:900px){
+  .admin-scope .admin-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .admin-scope .admin-dashboard-main-grid,.admin-scope .admin-dashboard-bottom-grid{grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:760px){
+  .admin-scope .admin-dashboard-heading{align-items:stretch;flex-direction:column}
+  .admin-scope .admin-dashboard-header-actions{justify-content:space-between;flex-wrap:wrap}
+  .admin-scope .admin-dashboard-shortcuts{flex-wrap:wrap}
+  .admin-scope .admin-quick-actions{align-items:flex-start;flex-direction:column}
+  .admin-scope .admin-quick-action-list{justify-content:flex-start}
+  .admin-scope .admin-dashboard-footer{align-items:flex-start;flex-wrap:wrap;gap:8px 14px}
+}
 .admin-table-wrap{width:100%;min-width:0;max-width:100%;overflow-x:auto}
 .admin-dashboard-table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}
 .admin-dashboard-table th{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.08);color:#77867c;font-size:8px;font-weight:650;letter-spacing:.08em;text-transform:uppercase}
