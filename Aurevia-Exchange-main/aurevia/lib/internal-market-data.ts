@@ -1,6 +1,6 @@
 import {Prisma} from '@prisma/client';
 import {db} from '@/lib/db';
-import type {LiveMarketAsset,MarketCandle,MarketQuote,TimeframeId} from '@/lib/live-market';
+import {TIMEFRAMES,type LiveMarketAsset,type MarketCandle,type MarketQuote,type TimeframeId} from '@/lib/live-market';
 
 const referencePrices:Record<string,number>={
 	DJI:42_000,SPX:5_800,NASDAQ:18_500,SP100:3_400,NDX:20_000,DAX:19_000,IBEX:11_800,
@@ -19,7 +19,6 @@ export function getInternalInstrumentSymbols(assetId:string){
 }
 
 const timeframeDays:Record<TimeframeId,number>={'1d':1,'1h':1,'5d':5,'1m':30,'3m':90,'ytd':365,'1y':365,'3y':1095,'5y':1825,'max':3650};
-const timeframeIntervals:Record<TimeframeId,string>={'1d':'30m','1h':'1h','5d':'2h','1m':'12h','3m':'1d','ytd':'1d','1y':'1d','3y':'1w','5y':'1w','max':'1mo'};
 
 function hash(value:string){
 	let result=2166136261;
@@ -109,7 +108,7 @@ function referenceMarketQuote(asset:LiveMarketAsset,now:number):MarketQuote{
 
 function marketHistoryFromQuote(asset:LiveMarketAsset,timeframe:TimeframeId,quote:MarketQuote){
 	const span=timeframeDays[timeframe]*86_400;
-	const interval=timeframeIntervals[timeframe];
+	const interval=TIMEFRAMES.find(item=>item.id===timeframe)?.interval??'1d';
 	const [,amount,unit]=interval.match(/^(\d+)(m|h|d|w|mo)$/)||[];
 	const unitSeconds:Record<string,number>={m:60,h:3_600,d:86_400,w:604_800,mo:2_592_000};
 	const step=Number(amount)*unitSeconds[unit];

@@ -19,10 +19,10 @@ export async function GET(){
 	try{
 		await requireAdmin();
 		const prefix=aiCredentialProposalSettingPrefix();
-		const aiStatus=getAiEngineStatus();
+		const aiStatusPromise=getAiEngineStatus();
 		const [integrations,ai,usageRows,historyRows,proposalRows,aiFeatures]=await Promise.all([
-			getIntegrationInventory(aiStatus),
-			aiStatus,
+			getIntegrationInventory(aiStatusPromise),
+			aiStatusPromise,
 			db.auditLog.findMany({where:{entity:'AI_USAGE'},select:{id:true,action:true,metadata:true,createdAt:true},orderBy:{createdAt:'desc'},take:100}),
 			db.auditLog.findMany({where:{entity:'INTEGRATION_HEALTH'},select:{id:true,action:true,metadata:true,createdAt:true},orderBy:{createdAt:'desc'},take:100}),
 			db.systemSetting.findMany({where:{key:{startsWith:prefix}},select:{key:true,value:true},orderBy:{updatedAt:'desc'},take:50}),

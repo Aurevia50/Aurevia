@@ -41,7 +41,7 @@ describe('internal paper-market quotes',()=>{
 		const history=await getInternalMarketHistory(asset,'1d');
 
 		expect(history.source).toBe('Aurevia Internal');
-		expect(history.candles).toHaveLength(240);
+		expect(history.candles).toHaveLength(1_440);
 		expect(history.quote.price).toBeGreaterThan(0);
 		expect(history.candles.every(candle=>Number.isFinite(candle.close)&&candle.close>0)).toBe(true);
 		expect(mocks.candleFindFirst).not.toHaveBeenCalled();
@@ -61,9 +61,9 @@ describe('internal paper-market quotes',()=>{
 
 		const history=getReferenceMarketHistory(asset,'1d');
 
-		expect(history).toMatchObject({source:'Aurevia Internal',timeframe:'1d',interval:'30m'});
+		expect(history).toMatchObject({source:'Aurevia Internal',timeframe:'1d',interval:'1m'});
 		expect(history.quote.source).toBe('Aurevia Internal');
-		expect(history.candles).toHaveLength(240);
+		expect(history.candles).toHaveLength(1_440);
 		expect(history.candles.every(candle=>Number.isFinite(candle.close)&&candle.close>0)).toBe(true);
 		expect(mocks.instrumentFindFirst).not.toHaveBeenCalled();
 		expect(mocks.candleFindFirst).not.toHaveBeenCalled();

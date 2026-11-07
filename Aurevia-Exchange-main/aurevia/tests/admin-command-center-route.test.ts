@@ -56,6 +56,8 @@ describe('admin AI and API command center routes',()=>{
 		const response=await GET();
 		const body=await response.json();
 		expect(response.status).toBe(200);
+		expect(body.ai.configuredProvider).toBe('openrouter');
+		expect(body.ai.providers).toEqual([]);
 		expect(body.approvalQueue).toEqual([{id:'proposal-1',provider:'openrouter',submittedBy:'admin-a',submittedAt:'2026-10-31T12:00:00.000Z',status:'PENDING'}]);
 		expect(JSON.stringify(body)).not.toContain('private-secret');
 	});
