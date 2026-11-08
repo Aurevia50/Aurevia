@@ -17,4 +17,10 @@ describe('support chat edge docking',()=>{
 	it('clamps the widget within the viewport after resizing',()=>{
 		expect(clampSupportChatPosition({left:900,top:900},true,viewport)).toEqual({left:428,top:28});
 	});
+
+	it('keeps the launcher and open panel above the mobile bottom navigation',()=>{
+		const mobileViewport={width:390,height:844,bottomInset:90};
+		expect(clampSupportChatPosition({left:500,top:800},false,mobileViewport)).toEqual({left:322,top:686});
+		expect(clampSupportChatPosition({left:20,top:800},true,mobileViewport)).toEqual({left:18,top:182});
+	});
 });

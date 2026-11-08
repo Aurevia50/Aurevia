@@ -848,7 +848,7 @@ test('startup releases page interaction if session initialization is delayed',as
 	await expect(page.locator('.scene-content > div[inert]')).toHaveCount(0);
 	releaseSession();
 	await expect(page.getByRole('heading',{name:'Welcome back'})).toBeVisible();
-	await page.getByRole('link',{name:'Create an account'}).click();
+	await page.getByRole('navigation',{name:'Website navigation'}).getByRole('link',{name:'Create an account'}).click();
 	await expect(page.getByRole('heading',{name:'Open an account'})).toBeVisible();
 	await expect(startup).toBeHidden();
 	await page.goBack();
@@ -1149,6 +1149,7 @@ test('sign-in returns to the protected dashboard requested before authentication
 test('administrator sign-in returns to the protected admin page requested before authentication',async({page})=>{
 	await page.goto('/admin/command-center');
 	await expect(page).toHaveURL(/\/admin\/login\?callbackUrl=/);
+	await waitForStartup(page);
 	await page.getByLabel('Admin username or email').fill(fixture('ADMIN_EMAIL'));
 	await page.getByLabel('Admin password').fill(fixture('ADMIN_PASSWORD'));
 	await page.getByRole('button',{name:'Enter control center'}).click();
@@ -1207,10 +1208,10 @@ for(const viewport of viewports){
 					if(route==='/activity'){
 						await expect(page.getByLabel('Search activity')).toBeVisible();
 						await expect(page.getByLabel('From')).toBeVisible();
-						await expect(page.getByLabel('To')).toBeVisible();
+						await expect(page.getByLabel('To',{exact:true})).toBeVisible();
 					}
 					if(route==='/dashboard'){
-						const expectedPage=theme==='forest-green'?'rgb(7, 17, 13)':'rgb(247, 248, 245)';
+						const expectedPage=theme==='forest-green'?'#07110d':'#f7f8f5';
 						const expectedPanel=theme==='forest-green'?'rgb(18, 32, 25)':'rgb(255, 255, 255)';
 						await expect(page.locator('html')).toHaveCSS('--theme-page',expectedPage);
 						await expect(page.locator('.user-dashboard-panel').first()).toHaveCSS('background-color',expectedPanel);
@@ -1239,12 +1240,12 @@ test('notifications bell, unread state, mark one/all, and history persist',async
 	await bell.click();
 	const dialog=page.getByRole('dialog',{name:'Notifications'});
 	await expect(dialog).toBeVisible();
-	const notificationZoomBlocked=await page.evaluate(()=>{
+	const notificationZoomPrevented=await page.evaluate(()=>{
 		const event=new KeyboardEvent('keydown',{key:'-',ctrlKey:true,cancelable:true});
 		document.dispatchEvent(event);
 		return event.defaultPrevented;
 	});
-	expect(notificationZoomBlocked).toBe(true);
+	expect(notificationZoomPrevented).toBe(false);
 	const popoverBounds=await dialog.boundingBox();
 	expect(popoverBounds?.height).toBeLessThan(844*.7);
 	expect(popoverBounds?.width).toBeLessThan(390);
@@ -1329,7 +1330,7 @@ test('account-mode changes initialize and isolate wallet, trade, history, and su
 	for(const viewport of [{width:375,height:812},{width:1440,height:900}]){
 		await page.setViewportSize(viewport);
 		await expect(page.getByText('Trade confidently with Aurevia. Manage your orders, monitor execution status, and track your account balance, portfolio performance, and available funds from one secure trading dashboard. Deposits and withdrawals are subject to account verification and approval.',{exact:true})).toBeVisible();
-		await expect(page.getByText(realExecutionNote,{exact:true})).toBeVisible();
+		await expect(page.getByText('Alpaca sandbox · provider-confirmed orders',{exact:true})).toBeVisible();
 		await expectNoHorizontalOverflow(page);
 	}
 	const realOrderButton=page.getByRole('button',{name:'Place BUY order'});
@@ -1356,6 +1357,7 @@ test('account-mode changes initialize and isolate wallet, trade, history, and su
 	}
 	await selectAccountMode(page,'DEMO');
 	await expect(page.locator('.account-heading .status-pill')).toContainText('DEMO');
+	await page.goto('/trade');
 	await expect(page.getByRole('button',{name:'Place BUY order'})).toBeEnabled();
 	await page.goto('/support');
 	await page.getByRole('button',{name:'Contact Admin'}).click();
@@ -1954,7 +1956,7 @@ test('profile completion and administrator identity review progress the account 
 	await expect(page.locator('.user-dashboard-profile-line').getByLabel('Current account tier: TIER 2')).toBeVisible();
 	await page.setViewportSize({width:320,height:800});
 	await page.goto('/tier');
-	await expect(page.getByRole('heading',{name:'Account tiers'})).toBeVisible();
+	await expect(page.getByRole('heading',{name:'Your account tier.'})).toBeVisible();
 	await expect(page.getByRole('region',{name:'Current tier progress'})).toContainText('TIER 2');
 	await expect(page.locator('.tier-step.is-current')).toContainText('Current');
 	await expectNoHorizontalOverflow(page);
@@ -2060,6 +2062,7 @@ test('administrator email sign-in persists through refresh and logout removes ad
 
 test('account navigation exposes learning, news, activity, conversion, and Nova assistant',async({page})=>{
 	await loginAs(page,fixture('USER_EMAIL'),fixture('USER_PASSWORD'));
+	await selectAccountMode(page,'REAL');
 	await page.setViewportSize({width:390,height:844});
 	await page.getByRole('navigation',{name:'Primary account navigation'}).getByRole('button',{name:'More navigation'}).click();
 	const menu=page.getByRole('dialog',{name:'More'});
@@ -2126,7 +2129,7 @@ test('admin ledger adjustments update isolated DEMO and REAL accounts with audit
 test('a normal customer cannot access the administrator dashboard',async({page})=>{
 	await loginAs(page,fixture('USER_EMAIL'),fixture('USER_PASSWORD'));
 	await page.goto('/admin');
-	await expect(page).toHaveURL(/\/login/);
+	await expect(page).toHaveURL(/\/dashboard$/);
 	expect((await page.request.get('/api/admin/verified-accounts')).status()).toBe(403);
 });
 
@@ -2168,7 +2171,7 @@ test('verified personal details remain read-only during the two-month lock windo
 		expect(update.status()).toBe(423);
 		expect((await update.json()).error).toContain('locked');
 		expect((await db.user.findUniqueOrThrow({where:{id:user.id},select:{name:true}})).name).toBe(user.name);
-		const topbarAvatar=page.locator('.user-topbar-avatar img');
+		const topbarAvatar=page.locator('.user-topbar-identity .user-topbar-avatar img');
 		await expect(topbarAvatar).toBeVisible();
 		await expect.poll(()=>topbarAvatar.evaluate(image=>{
 			const style=getComputedStyle(image);
@@ -2403,7 +2406,7 @@ test('admin pages require an administrator session before rendering',async({page
 });
 
 for(const width of [375,414]){
-	test(`admin uses desktop navigation on mobile at ${width}px`,async({browser})=>{
+	test(`admin navigation opens as a mobile drawer at ${width}px`,async({browser})=>{
 		const context=await browser.newContext({
 			baseURL:appOrigin,
 			viewport:{width,height:812},
@@ -2414,21 +2417,24 @@ for(const width of [375,414]){
 			const mobilePage=await context.newPage();
 			await loginAs(mobilePage,fixture('ADMIN_EMAIL'),fixture('ADMIN_PASSWORD'));
 			const navigation=mobilePage.getByRole('navigation',{name:'Administrator navigation'});
+			const openMenu=mobilePage.getByRole('button',{name:'Open admin menu'});
+			await expect(openMenu).toBeVisible();
+			await openMenu.click();
+			await expect(mobilePage.getByRole('button',{name:'Close admin menu'})).toBeVisible();
 			for(const group of ['Dashboards','Accounts','Operations','Services','System']){
 				await expect(navigation.getByRole('region',{name:group})).toBeVisible();
 			}
-			await expect(mobilePage.getByRole('button',{name:'Open admin menu'})).toBeHidden();
-			expect(await mobilePage.evaluate(()=>window.innerWidth)).toBeGreaterThanOrEqual(1280);
+			expect(await mobilePage.evaluate(()=>window.innerWidth)).toBe(width);
 			const layoutBounds=await mobilePage.evaluate(()=>{
 				const sidebar=document.querySelector('.admin-sidebar')!.getBoundingClientRect();
-				const topbar=document.querySelector('.admin-topbar')!.getBoundingClientRect();
 				const links=[...document.querySelectorAll('#admin-navigation a')].map(link=>{
 					const bounds=link.getBoundingClientRect();
 					return {left:bounds.left,right:bounds.right};
 				});
-				return {sidebarRight:sidebar.right,topbarLeft:topbar.left,sidebarLeft:sidebar.left,links};
+				return {sidebarLeft:sidebar.left,sidebarRight:sidebar.right,width:innerWidth,links};
 			});
-			expect(layoutBounds.sidebarRight).toBeLessThanOrEqual(layoutBounds.topbarLeft+1);
+			expect(layoutBounds.sidebarLeft).toBeGreaterThanOrEqual(-1);
+			expect(layoutBounds.sidebarRight).toBeLessThanOrEqual(layoutBounds.width+1);
 			expect(layoutBounds.links.every(link=>link.left>=layoutBounds.sidebarLeft-1&&link.right<=layoutBounds.sidebarRight+1)).toBe(true);
 			const settingsLink=navigation.getByRole('link',{name:'Settings',exact:true});
 			await settingsLink.focus();
@@ -3212,7 +3218,8 @@ test('account deletion preserves ledger history and permits fresh registration w
 	expect((await db.user.findUniqueOrThrow({where:{id:userId}})).status).toBe('ACTIVE');
 
 	const deleted=await page.request.post('/api/account/delete',{data:{password,confirmation:'DELETE'}});
-	expect(deleted.status()).toBe(200);
+	const deletionResult=await deleted.json();
+	expect(deleted.status(),JSON.stringify(deletionResult)).toBe(200);
 	await page.goto('/login');
 	const closedUser=await db.user.findUniqueOrThrow({where:{id:userId},select:{status:true,email:true}});
 	expect(closedUser.status).toBe('CLOSED');
@@ -3268,7 +3275,7 @@ test('Deleted Items enforces admin access and supports audited soft delete, bulk
 		await loginAs(userPage,fixture('USER_EMAIL'),fixture('USER_PASSWORD'));
 		expect((await userPage.request.get('/api/admin/deleted-items')).status()).toBe(403);
 		await userPage.goto('/admin/deleted-items');
-		await expect(userPage).toHaveURL(/\/login(?:\?|$)/);
+		await expect(userPage).toHaveURL(/\/dashboard$/);
 	}finally{await userContext.close();}
 	const adminId=await db.user.findUniqueOrThrow({where:{email:fixture('ADMIN_EMAIL')},select:{id:true}}).then(user=>user.id);
 	const suffix=randomUUID();

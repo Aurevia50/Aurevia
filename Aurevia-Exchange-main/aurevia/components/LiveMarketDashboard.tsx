@@ -5,8 +5,9 @@ import {useSearchParams} from 'next/navigation';
 import {QueryClient,QueryClientProvider,useQuery} from '@tanstack/react-query';
 import {useSession} from 'next-auth/react';
 import {io,type Socket} from 'socket.io-client';
-import {Activity,ArrowLeftRight,Check,ChevronDown,GripVertical,ListPlus,Plus,RefreshCw,Search,Sparkles,Star,Trash2,X} from 'lucide-react';
+import {Activity,ArrowLeftRight,Building2,ChartNoAxesCombined,Check,ChevronDown,Coins,GripVertical,ListPlus,Plus,RefreshCw,Search,Sparkles,Star,Trash2,X,type LucideIcon} from 'lucide-react';
 import Nav from '@/components/Nav';
+import AureviaIcon from '@/components/AureviaIcon';
 import LivePriceChart from '@/components/LivePriceChart';
 import {COMPARISON_SYMBOLS,DEFAULT_WATCHLIST,MARKET_ASSETS,TIMEFRAMES,getMarketAsset,isExternalMarketDataSource,type MarketCandle,type MarketQuote,type TimeframeId} from '@/lib/live-market';
 import {setMarketWatchlistUserScope,useMarketWatchlists} from '@/lib/market-watchlists';
@@ -21,6 +22,7 @@ type MarketCategory='Favorites'|'Forex'|'Crypto'|'Stocks'|'Indices';
 
 const TICKER_SYMBOLS=['BTC','DJI','MERV','DAX','IBEX','NIKKEI','EURGBP','SPX','NASDAQ'];
 const MARKET_CATEGORIES:MarketCategory[]=['Favorites','Forex','Crypto','Stocks','Indices'];
+const marketTypeIcons:Record<string,LucideIcon>={INDEX:ChartNoAxesCombined,STOCK:Building2,FOREX:ArrowLeftRight,CRYPTO:Coins};
 
 export default function LiveMarketDashboard(){
   const [queryClient]=useState(()=>new QueryClient({defaultOptions:{queries:{staleTime:4_000,refetchOnWindowFocus:true,retry:1}}}));
@@ -265,7 +267,7 @@ function LiveMarketDashboardContent(){
         </section>
         <div className="live-chart-card">
           <div className="live-asset-title">
-            <div className="live-asset-id"><span>{symbolBadge(selectedAsset.type)}</span><div><div className="live-symbol-line"><span>{selectedAsset.id}</span><span className="live-market-tag">{marketTypeLabel(selectedAsset.type)}</span></div><h2>{selectedAsset.name}</h2></div></div>
+            <div className="live-asset-id"><span><AureviaIcon icon={symbolBadge(selectedAsset.type)} size={16}/></span><div><div className="live-symbol-line"><span>{selectedAsset.id}</span><span className="live-market-tag">{marketTypeLabel(selectedAsset.type)}</span></div><h2>{selectedAsset.name}</h2></div></div>
             <button className="live-mobile-list-button" type="button" aria-controls="market-watchlists" aria-expanded={sidebarOpen} onClick={()=>setSidebarOpen(!sidebarOpen)}><ArrowLeftRight size={15}/> Watchlists</button>
           </div>
           <div className="live-price-line">
@@ -380,4 +382,4 @@ function formatTime(value:string){return new Date(value).toLocaleTimeString('en-
 function tone(value:number){return value>=0?'is-positive':'is-negative'}
 function marketTypeLabel(type:string){return ({INDEX:'INDEX',STOCK:'STOCK',FOREX:'FOREX',CRYPTO:'CRYPTO'})[type as 'INDEX'|'STOCK'|'FOREX'|'CRYPTO']||type}
 function marketOpenLabel(type:string){return type==='CRYPTO'?'Market open 24/7':'Market · latest available session'}
-function symbolBadge(type:string){return ({INDEX:'↗',STOCK:'◈',FOREX:'⇄',CRYPTO:'₿'})[type as 'INDEX'|'STOCK'|'FOREX'|'CRYPTO']||'↗'}
+function symbolBadge(type:string):LucideIcon{return marketTypeIcons[type]||marketTypeIcons.INDEX}

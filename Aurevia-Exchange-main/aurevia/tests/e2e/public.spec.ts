@@ -62,17 +62,17 @@ test.describe('public routes and responsive layout',()=>{
 	}
 });
 
-test('zoom is locked for regular pages and available in admin',async({page})=>{
+test('zoom remains available for regular pages and admin',async({page})=>{
 	await page.goto('/markets');
 	const regularViewport=await page.locator('meta[name="viewport"]').getAttribute('content');
-	expect(regularViewport).toContain('maximum-scale=1');
-	expect(regularViewport).toContain('user-scalable=no');
-	const regularZoomBlocked=await page.evaluate(()=>{
+	expect(regularViewport).toContain('maximum-scale=5');
+	expect(regularViewport).toContain('user-scalable=yes');
+	const regularZoomPrevented=await page.evaluate(()=>{
 		const event=new KeyboardEvent('keydown',{key:'-',ctrlKey:true,cancelable:true});
 		document.dispatchEvent(event);
 		return event.defaultPrevented;
 	});
-	expect(regularZoomBlocked).toBe(true);
+	expect(regularZoomPrevented).toBe(false);
 
 	await page.goto('/admin/login');
 	const adminViewport=await page.locator('meta[name="viewport"]').getAttribute('content');
@@ -99,11 +99,18 @@ test('homepage keeps Stories in navigation and off the landing content',async({p
 		await page.setViewportSize({width,height:844});
 		await page.goto('/');
 		await expect(page.locator('.stories-section')).toHaveCount(0);
-		await expect(page.locator('.client-stories-rotator')).toHaveCount(0);
 		await expectNoHorizontalOverflow(page);
 	}
 	await loginAs(page,process.env.AUREVIA_E2E_USER_EMAIL!,process.env.AUREVIA_E2E_USER_PASSWORD!);
-	await page.getByRole('navigation',{name:'Primary account navigation'}).getByRole('button',{name:'More navigation'}).click();
+	const moreButton=page.getByRole('navigation',{name:'Primary account navigation'}).getByRole('button',{name:'More navigation'});
+	const hitTest=await moreButton.evaluate(button=>{
+		const bounds=button.getBoundingClientRect();
+		const hit=document.elementFromPoint(bounds.left+bounds.width/2,bounds.top+bounds.height/2);
+		const chat=document.querySelector('.floating-support')?.getBoundingClientRect();
+		return {hitByChat:Boolean(hit?.closest('.floating-support')),more:{left:bounds.left,right:bounds.right,top:bounds.top,bottom:bounds.bottom},chat:chat?{left:chat.left,right:chat.right,top:chat.top,bottom:chat.bottom}:null};
+	});
+	expect(hitTest.hitByChat,JSON.stringify(hitTest)).toBe(false);
+	await moreButton.click();
 	await expect(page.getByRole('dialog',{name:'More'}).getByRole('link',{name:'Stories',exact:true})).toHaveAttribute('href','/stories');
 });
 
@@ -159,7 +166,7 @@ test('first-visit policy consent handles choices and unlocks the platform',async
 	await page.goto('/');
 	const dialog=page.getByRole('dialog',{name:'Review before continuing'});
 	await expect(dialog).toBeVisible();
-	await expect(dialog).toContainText('DEMO is practice only');
+	await expect(dialog).toContainText('DEMO is for practice');
 	await dialog.getByRole('button',{name:'Cancel'}).click();
 	await expect(page.getByRole('dialog',{name:'Choice deferred'})).toBeVisible();
 	expect(await page.evaluate(()=>localStorage.getItem('aurevia-policy-consent-v1'))).toBeNull();

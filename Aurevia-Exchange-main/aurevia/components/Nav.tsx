@@ -5,6 +5,7 @@ import {useSession,signOut} from 'next-auth/react';
 import {usePathname,useRouter} from 'next/navigation';
 import {ArrowLeft,ArrowLeftRight,ArrowRight,Award,Bell,BookOpen,Bot,BriefcaseBusiness,ChartNoAxesCombined,CreditCard,FileText,HeartHandshake,History,House,LayoutDashboard,LineChart,LogOut,Mail,Menu,MoreHorizontal,Newspaper,PhoneCall,Radio,Search,Settings,ShieldCheck,UserRound,Wallet,X} from 'lucide-react';
 import {useEffect,useRef,useState} from 'react';
+import AureviaIcon from '@/components/AureviaIcon';
 import NotificationBell from '@/components/NotificationBell';
 import LanguageSelector from '@/components/LanguageSelector';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -37,7 +38,7 @@ const moreMenuGroups=[
   {href:'/tier',label:'Tier / membership',icon:Award},
   {href:'/stories',label:'Stories',icon:Radio},
   {href:'/client-stories',label:'Testimonials',icon:HeartHandshake},
-  {href:'/community',label:'Community finance',icon:HeartHandshakeIcon},
+  {href:'/community',label:'Community finance',icon:HeartHandshake},
  ]},
  {title:'Learning & updates',links:[
   {href:'/education',label:'Investment education',icon:BookOpen},
@@ -71,6 +72,7 @@ export default function Nav(){
  };
  const userMode=status==='authenticated'&&data?.user?.role==='USER';
  const homeRoute=pathname==='/';
+ const moreRouteActive=moreMenuGroups.some(group=>group.links.some(item=>active(item.href)));
  const userDestinations=[
   {href:'/dashboard',label:'Dashboard',group:'Overview'},
    {href:'/markets',label:'Markets',group:'Investing'},
@@ -235,7 +237,7 @@ export default function Nav(){
     <button type="button" aria-pressed={data.user.accountMode==='DEMO'} disabled={modeBusy||loggingOut||data.user.accountMode==='DEMO'} onClick={()=>void changeMode('DEMO')}>Demo</button>
     <button type="button" aria-pressed={data.user.accountMode==='REAL'} disabled={modeBusy||loggingOut||data.user.accountMode==='REAL'} onClick={()=>void changeMode('REAL')}>Real</button>
    </div>
-   <div className="user-topbar-actions">{homeRoute?<NotificationBell/>:<><button type="button" className="user-account-back" onClick={goBack} aria-label="Go back to previous page" title="Go back to previous page"><ArrowLeft size={16} aria-hidden="true"/></button><NotificationBell/><button ref={userMenuButtonRef} type="button" className={`user-account-back user-topbar-more${open||moreMenuGroups.some(group=>group.links.some(item=>active(item.href)))?' is-active':''}`} aria-label="More account navigation" aria-expanded={open} aria-controls="user-more-menu" onClick={()=>setOpen(value=>!value)}><MoreHorizontal size={17} aria-hidden="true"/></button><LanguageSelector/></>}</div>
+  <div className="user-topbar-actions">{homeRoute?<NotificationBell/>:<><button type="button" className="user-account-back" onClick={goBack} aria-label="Go back to previous page" title="Go back to previous page"><ArrowLeft size={16} aria-hidden="true"/></button><NotificationBell/><button ref={userMenuButtonRef} type="button" className={`user-account-back user-topbar-more${open||moreRouteActive?' is-active':''}`} aria-label="More account navigation" aria-expanded={open} aria-controls="user-more-menu" onClick={()=>setOpen(value=>!value)}><MoreHorizontal size={17} aria-hidden="true"/></button><LanguageSelector/></>}</div>
    {!homeRoute&&<span className="user-topbar-identity"><ProfileAvatar className="user-topbar-avatar" size={32} alt="Your profile picture"/><span><b>{data.user.name||data.user.email}</b><AccountTierBadge tier={tierLabel}/></span></span>}
    {modeError&&<span className="user-mode-error" role="alert">{modeError}</span>}
   </div>
@@ -245,14 +247,14 @@ export default function Nav(){
    <Link href="/markets" aria-current={active('/markets')?'page':undefined} className={active('/markets')?'is-active':''}><LineChart size={20} strokeWidth={1.8}/><span>Markets</span></Link>
    <Link href="/trade" aria-label="Trade markets" aria-current={active('/trade')?'page':undefined} className={`user-bottom-trade ${active('/trade')?'is-active':''}`}><ArrowLeftRight size={22} strokeWidth={2}/><span>Trade</span></Link>
    <Link href="/portfolio" aria-current={active('/portfolio')?'page':undefined} className={active('/portfolio')?'is-active':''}><ChartNoAxesCombined size={20} strokeWidth={1.8}/><span>Portfolio</span></Link>
-   <button ref={userBottomMenuButtonRef} type="button" className={open?'is-active':''} aria-label={open?'Close More navigation':'More navigation'} aria-expanded={open} aria-controls="user-more-menu" onClick={()=>setOpen(value=>!value)}><MoreHorizontal size={20} strokeWidth={1.8}/><span>More</span></button>
+  <button ref={userBottomMenuButtonRef} type="button" className={open||moreRouteActive?'is-active':''} aria-label={open?'Close More navigation':'More navigation'} aria-expanded={open} aria-controls="user-more-menu" onClick={()=>setOpen(value=>!value)}><MoreHorizontal size={20} strokeWidth={1.8}/><span>More</span></button>
   </nav>}
   {!homeRoute&&open&&<button type="button" className="user-more-backdrop" aria-label="Close More menu" tabIndex={-1} onClick={close}/>}
   {!homeRoute&&<section ref={userNavRef} id="user-more-menu" className="user-more-menu" role="dialog" aria-modal={open||undefined} aria-labelledby="user-more-title" hidden={!open}>
    <header className="user-more-heading"><div><span>ACCOUNT NAVIGATION</span><h2 id="user-more-title">More</h2></div><button type="button" className="user-more-close" aria-label="Close More menu" onClick={close}><X size={18}/></button></header>
    <div className="user-more-profile"><ProfileAvatar className="user-topbar-avatar" size={36} alt="Your profile picture"/><span><b>{data.user.name||data.user.email}</b><AccountTierBadge tier={tierLabel}/></span><Link href="/settings#profile" onClick={close}>Profile</Link></div>
    <div className="user-more-theme"><span>Appearance</span><ThemeToggle/></div>
-   <div className="user-more-groups">{visibleMoreMenuGroups.map(group=><section className="user-more-group" key={group.title} aria-label={group.title}><h3>{group.title}</h3>{group.links.map(({href,label,icon:Icon})=><Link href={href} key={href} aria-current={active(href)?'page':undefined} onClick={close}><Icon size={17} strokeWidth={1.7}/><span>{label}</span></Link>)}</section>)}
+  <div className="user-more-groups">{visibleMoreMenuGroups.map(group=><section className="user-more-group" key={group.title} aria-label={group.title}><h3>{group.title}</h3>{group.links.map(({href,label,icon:Icon})=><Link href={href} key={href} aria-current={active(href)?'page':undefined} onClick={close}><AureviaIcon icon={Icon} size={17} strokeWidth={1.7}/><span>{label}</span></Link>)}</section>)}
     {currentMode!=='DEMO'&&<section className="user-more-group" aria-label="Additional account pages"><h3>Additional</h3><Link href="/tax-services" aria-current={active('/tax-services')?'page':undefined} onClick={close}><FileText size={17}/><span>Tax services</span></Link></section>}
    </div>
    <button type="button" className="user-more-logout" disabled={loggingOut} aria-busy={loggingOut} onClick={()=>void logout()}><LogOut size={17}/>{loggingOut?translate('signingOut'):translate('logout')}</button>
@@ -353,4 +355,3 @@ export default function Nav(){
 }
 
 function ActivityIcon(){return <LineChart size={15} aria-hidden="true"/>}
-function HeartHandshakeIcon(){return <HeartHandshake size={16} aria-hidden="true"/>}

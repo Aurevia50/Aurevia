@@ -3071,7 +3071,7 @@ body:has(.site-nav-user-shell) main.user-dashboard-page{width:100%;max-width:165
 .local-calendar-weekdays span{overflow:hidden;color:var(--color-muted);font-size:7px;text-align:center;text-overflow:ellipsis}
 .local-calendar-day{position:relative;display:grid;min-width:0;min-height:26px;aspect-ratio:1;place-items:center;border:1px solid transparent;border-radius:4px;background:transparent;color:var(--color-text-primary);font-size:8px;font-variant-numeric:tabular-nums;cursor:pointer}
 .local-calendar-day:hover{border-color:var(--color-border);background:color-mix(in srgb,var(--color-gold) 8%,transparent)}
-.local-calendar-day.is-outside{color:var(--color-muted);opacity:.55}
+.local-calendar-day.is-outside{color:var(--theme-text-muted);opacity:1}
 .local-calendar-day.is-selected{border-color:var(--color-gold);background:color-mix(in srgb,var(--color-gold) 16%,transparent)}
 .local-calendar-day.is-today:after{position:absolute;bottom:2px;width:3px;height:3px;border-radius:50%;background:var(--color-gold);content:""}
 .local-calendar-footer{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:5px;color:var(--color-muted);font-size:8px}
@@ -4218,7 +4218,7 @@ body:has(.dashboard-sidebar) .user-dashboard-footnote{color:#7c8780}
 	.mobile-settings-page .notification-sound-feedback.is-success{color:#477a46}
 }
 
-html[data-theme="dark"] body:has(.mobile-settings-page){background:#0b0f1a;color:#f8fafc}
+html[data-theme="dark"] body:has(.mobile-settings-page){background:var(--theme-page);color:var(--theme-text)}
 html[data-theme="dark"] body:has(.mobile-settings-page) main.mobile-settings-page{color:#f8fafc}
 html[data-theme="dark"] .mobile-settings-heading h1,
 html[data-theme="dark"] .mobile-settings-row,

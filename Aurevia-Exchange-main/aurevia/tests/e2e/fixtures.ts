@@ -143,13 +143,28 @@ test.afterEach(async({page},testInfo)=>{
 	const expectedClientErrors=[...expectedFallbackResponse,...capture.failedResponses.filter(response=>(testInfo.title.includes('duplicate signup offers sign-in')&&response.url.endsWith('/api/register')&&response.status===409)||(testInfo.title.includes('registration fails closed when Akedly credentials are unavailable')&&response.url.endsWith('/api/register')&&response.status===503)||(response.url.endsWith('/api/auth/callback/credentials')&&response.status===401)||(testInfo.title.includes('TOTP enrollment')&&response.url.endsWith('/api/security/totp')&&response.status===400)||((testInfo.title.includes('watchlists persist')||testInfo.title.includes('session replacement is explicit')||testInfo.title.includes('Nova escalation reaches admin')||testInfo.title.includes('tier requests require')||testInfo.title.includes('account deletion'))&&response.url.endsWith('/api/notifications?limit=8')&&response.status===401)||(testInfo.title.includes('account deletion')&&((['/api/currency-preference','/api/positions','/api/tax-services/access','/api/profile','/api/profile/avatar'].some(path=>response.url.endsWith(path))&&response.status===401)||(response.url.endsWith('/api/dashboard/overview')&&response.status===403)))|| (testInfo.title.includes('Nova escalation reaches admin')&&response.url.endsWith('/api/support')&&response.status===409)||((testInfo.title.includes('Account Funding')||testInfo.title.includes('Wallet shows the internal funding workflow'))&&(response.url.endsWith('/api/payment-methods')||response.url.endsWith('/api/wallet'))&&response.status===503)||(response.url.includes('/api/live-markets/')&&response.status===503&&!marketProviderConfigured)||(testInfo.title.includes('KYC access is owner-scoped')&&response.url.endsWith('/api/kyc/documents')&&response.status===409))];
 	if(testInfo.title.includes('support fallback'))expectedClientErrors.push(...capture.failedResponses.filter(response=>response.url.endsWith('/api/support/nova')&&response.status===503));
 	if(testInfo.title.includes('account deletion'))expectedClientErrors.push(...capture.failedResponses.filter(response=>(response.url.endsWith('/api/profile')&&response.status===403)||(response.url.endsWith('/api/dashboard/overview')&&[401,403].includes(response.status))));
-	const unexpectedResponses=capture.failedResponses.filter(response=>!expectedClientErrors.includes(response));
+	if(testInfo.title.includes('account deletion'))expectedClientErrors.push(...capture.failedResponses.filter(response=>response.url.endsWith('/api/notifications?limit=100')&&response.status===401));
+	const expectedSyntheticRouteFailures=testInfo.title.includes('authenticated routes render without horizontal overflow')?capture.failedResponses.filter(response=>{
+		const route=new URL(response.url).pathname;
+		return route==='/api/cards/theme-id'&&response.status===404||route==='/api/funding/theme-id'&&response.status===404||route==='/api/tax-services/cases/theme-id'&&response.status===403;
+	}):[];
+	const unexpectedResponses=capture.failedResponses.filter(response=>!expectedClientErrors.includes(response)&&!expectedSyntheticRouteFailures.includes(response));
 	const accountClosureAccessDenied=testInfo.title.includes('account deletion')&&capture.failedResponses.some(response=>(response.url.endsWith('/api/profile')&&[401,403].includes(response.status))||(response.url.endsWith('/api/dashboard/overview')&&[401,403].includes(response.status)));
 	const accountClosureProfileDenied=testInfo.title.includes('account deletion')&&capture.failedResponses.some(response=>response.url.endsWith('/api/profile')&&[401,403].includes(response.status));
 	let remainingExpectedFallbackErrors=expectedFallbackResponse.length;
+	let remainingSyntheticNotFoundErrors=expectedSyntheticRouteFailures.filter(response=>response.status===404).length;
+	let remainingSyntheticForbiddenErrors=expectedSyntheticRouteFailures.filter(response=>response.status===403).length;
 	const unexpectedConsoleErrors=capture.consoleErrors.filter(message=>{
 		if(message==='Failed to load resource: the server responded with a status of 404 (Not Found)'&&remainingExpectedFallbackErrors>0){
 			remainingExpectedFallbackErrors--;
+			return false;
+		}
+		if(message==='Failed to load resource: the server responded with a status of 404 (Not Found)'&&remainingSyntheticNotFoundErrors>0){
+			remainingSyntheticNotFoundErrors--;
+			return false;
+		}
+		if(message==='Failed to load resource: the server responded with a status of 403 (Forbidden)'&&remainingSyntheticForbiddenErrors>0){
+			remainingSyntheticForbiddenErrors--;
 			return false;
 		}
 		return !(accountClosureAccessDenied&&message.includes('status of 403 (Forbidden)')||accountClosureProfileDenied&&message.includes('Unable to refresh the account tier.'));

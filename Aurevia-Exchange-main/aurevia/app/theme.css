@@ -254,6 +254,23 @@ html[data-theme-name] .admin-chart-gridline{stroke:var(--theme-chart-grid)}
 html[data-theme-name] .admin-chart-label{fill:var(--theme-chart-label)}
 html[data-theme-name] .admin-chart-deposits{stroke:var(--theme-accent)}
 html[data-theme-name] .admin-chart-withdrawals{stroke:var(--theme-info)}
+html[data-theme-name="forest-green"] .admin-scope :is(
+	.admin-chart-legend,.admin-chart-totals,.admin-status-row>span,.admin-status-row>small,
+	.admin-status-donut span,.admin-account-type-list small,.admin-panel-note,.admin-dashboard-footer,
+	.admin-dashboard-table th,.admin-dashboard-table td,.admin-activity-copy small,.admin-activity-list time,
+	.admin-activity-day h3,.admin-ai-interpretation,.admin-ai-visualization h3,.admin-ai-bars,
+	.admin-ai-timeseries small,.admin-dashboard-heading p:not(.admin-eyebrow),
+	.admin-panel-heading p:not(.admin-eyebrow),.admin-metric-top,.admin-metric-bottom,
+	.admin-metric-disclaimer,.admin-dashboard-breadcrumb,.admin-clock,.admin-search-results section>button small,
+	.admin-search-results>p,.admin-status-row>b,.admin-account-type-list b,.admin-account-type-list strong
+){color:var(--theme-text-secondary)}
+html[data-theme-name="forest-green"] .admin-scope :is(.admin-panel-link,.admin-eyebrow,.admin-dashboard-breadcrumb a){color:var(--theme-accent)}
+html[data-theme-name="forest-green"] .admin-scope :is(.admin-account-type-list b,.admin-account-type-list strong,.admin-status-row>b){color:var(--theme-text)}
+html[data-theme-name="forest-green"] .admin-scope .admin-status-donut>div{border-color:var(--theme-border);background:var(--theme-surface)}
+html[data-theme-name="forest-green"] .admin-scope .admin-user-link small{color:var(--theme-text-secondary)}
+html[data-theme-name="forest-green"] .admin-scope .admin-row-action{color:var(--theme-accent)}
+html[data-theme-name="forest-green"] .admin-scope .admin-activity-copy b{color:var(--theme-text)}
+html[data-theme-name="forest-green"] .admin-scope summary{color:var(--theme-accent)}
 html[data-theme-name] .live-market-page{
 	--lm-bg:var(--theme-page);
 	--lm-panel:var(--theme-surface);
@@ -365,14 +382,55 @@ html[data-theme-name] .admin-scope :is(.admin-metric-icon,.admin-mode-icon,.admi
 	border:1px solid var(--theme-border);
 	box-shadow:inset 0 1px color-mix(in srgb,var(--theme-text) 12%,transparent),0 4px 9px color-mix(in srgb,var(--theme-page) 32%,transparent);
 }
-html[data-theme-name] .admin-scope svg.lucide{
-	filter:drop-shadow(0 1px 0 color-mix(in srgb,var(--theme-text) 20%,transparent)) drop-shadow(0 3px 4px color-mix(in srgb,var(--theme-page) 38%,transparent));
-	transform:perspective(90px) rotateX(8deg);
+html[data-theme-name] svg.lucide:not(.aurevia-icon-3d__layer){
+	overflow:visible;
+	filter:
+		drop-shadow(0 1px 0 color-mix(in srgb,var(--theme-text) 34%,transparent))
+		drop-shadow(0 2px 0 color-mix(in srgb,var(--theme-accent) 28%,transparent))
+		drop-shadow(0 4px 3px color-mix(in srgb,var(--theme-page) 44%,transparent));
+	transform:perspective(120px) rotateX(4deg) translateZ(0);
+	transform-origin:center;
 	transition:transform .18s ease,filter .18s ease;
 }
-html[data-theme-name] .admin-scope :is(button,a):hover svg.lucide{
-	filter:drop-shadow(0 2px 2px color-mix(in srgb,var(--theme-page) 35%,transparent));
-	transform:perspective(90px) rotateX(0) translateY(-1px);
+html[data-theme-name] :is(a,button:not(:disabled),[role="button"],summary):hover svg.lucide:not(.aurevia-icon-3d__layer){
+	filter:
+		drop-shadow(0 1px 0 color-mix(in srgb,var(--theme-text) 48%,transparent))
+		drop-shadow(0 2px 0 color-mix(in srgb,var(--theme-accent) 38%,transparent))
+		drop-shadow(0 5px 4px color-mix(in srgb,var(--theme-page) 46%,transparent));
+	transform:perspective(120px) rotateX(0) translateY(-1px) scale(1.035);
+}
+html[data-theme-name] :is(a,button,[role="button"],summary):focus-visible svg.lucide:not(.aurevia-icon-3d__layer){
+	filter:drop-shadow(0 0 4px color-mix(in srgb,var(--theme-accent) 62%,transparent));
+}
+html[data-theme-name] :is(a,button:not(:disabled),[role="button"],summary):active svg.lucide:not(.aurevia-icon-3d__layer){
+	transform:perspective(120px) rotateX(-4deg) translateY(1px) scale(.96);
+}
+.aurevia-icon-3d{
+	--aurevia-icon-size:18px;
+	--aurevia-icon-metal:color-mix(in srgb,var(--theme-accent) 48%,var(--theme-text-secondary));
+	--aurevia-icon-highlight:color-mix(in srgb,var(--theme-text) 64%,var(--theme-accent));
+	position:relative;
+	display:inline-grid;
+	place-items:center;
+	flex:0 0 var(--aurevia-icon-size);
+	width:var(--aurevia-icon-size);
+	height:var(--aurevia-icon-size);
+	line-height:0;
+	vertical-align:middle;
+	perspective:100px;
+	transform-style:preserve-3d;
+	overflow:visible;
+}
+.aurevia-icon-3d--gold{--aurevia-icon-metal:color-mix(in srgb,var(--theme-accent) 82%,var(--theme-page));--aurevia-icon-highlight:color-mix(in srgb,var(--theme-text) 74%,var(--theme-accent))}
+.aurevia-icon-3d--silver{--aurevia-icon-metal:color-mix(in srgb,var(--theme-text-secondary) 74%,var(--theme-page));--aurevia-icon-highlight:color-mix(in srgb,var(--theme-text) 84%,var(--theme-text-secondary))}
+.aurevia-icon-3d__layer{grid-area:1/1;width:100%;height:100%;overflow:visible;pointer-events:none}
+.aurevia-icon-3d__extrusion{color:var(--aurevia-icon-metal);stroke-width:2.1;transform:translate3d(0,1.15px,-1px);filter:drop-shadow(0 2px 2px color-mix(in srgb,var(--theme-page) 55%,transparent))}
+.aurevia-icon-3d__face{color:currentColor;stroke-width:1.75;transform:translateZ(1px)}
+.aurevia-icon-3d__glint{color:var(--aurevia-icon-highlight);stroke-width:1.35;opacity:.46;transform:translate3d(-.2px,-.45px,2px);mask-image:linear-gradient(145deg,#000 0 40%,transparent 69%)}
+@media(prefers-reduced-motion:reduce){
+	html[data-theme-name] svg.lucide:not(.aurevia-icon-3d__layer){transition:none}
+	html[data-theme-name] :is(a,button,[role="button"],summary):hover svg.lucide:not(.aurevia-icon-3d__layer),
+	html[data-theme-name] :is(a,button,[role="button"],summary):active svg.lucide:not(.aurevia-icon-3d__layer){transform:none}
 }
 @media(max-width:760px){
 	html[data-theme-name] .admin-scope .account-heading{padding:16px}

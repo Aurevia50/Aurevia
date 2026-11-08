@@ -6,6 +6,7 @@ import Link from 'next/link';
 import {signOut,useSession} from 'next-auth/react';
 import {usePathname,useRouter,useSearchParams} from 'next/navigation';
 import {Activity,ArrowLeft,ArrowRight,BadgeCheck,Bell,BriefcaseBusiness,Building2,ClipboardCheck,CreditCard,FileCheck2,Handshake,LayoutDashboard,LogOut,Menu,MessageSquareText,Newspaper,Radio,ReceiptText,Search,Settings2,ShieldCheck,SlidersHorizontal,Sparkles,Trash2,UsersRound,X} from 'lucide-react';
+import AureviaIcon from '@/components/AureviaIcon';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import ThemeToggle from '@/components/ThemeToggle';
 
@@ -177,7 +178,7 @@ export default function AdminNav(){
 						const expected=new URLSearchParams(query);
 						const actual=new URLSearchParams(currentQuery);
 						const isActive=pathname===path&&['mode','type'].every(key=>expected.get(key)===actual.get(key))&&([...expected.keys()].length>0||![...actual.keys()].some(key=>key==='mode'||key==='type'));
-						return <Link key={href} href={href} title={label} onClick={close} aria-current={isActive?'page':undefined}><Icon size={16} aria-hidden="true"/><span>{label}</span>{href==='/admin/audit-logs'&&hasUnreadActivity&&<span className="admin-unread-dot" aria-label="New admin activity"/>}</Link>;
+						return <Link key={href} href={href} title={label} onClick={close} aria-current={isActive?'page':undefined}><AureviaIcon icon={Icon} size={16}/><span>{label}</span>{href==='/admin/audit-logs'&&hasUnreadActivity&&<span className="admin-unread-dot" aria-label="New admin activity"/>}</Link>;
 					})}
 				</section>)}</div>:<p className="admin-nav-loading">Administrator access required</p>}
 			</nav>
