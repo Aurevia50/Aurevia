@@ -1,9 +1,9 @@
 'use client';
-import {FormEvent,useState} from 'react';
+import {FormEvent,useEffect,useState} from 'react';
 import {signIn,useSession} from 'next-auth/react';
-import {useRouter} from 'next/navigation';
 import Image from 'next/image';
 import {Eye,EyeOff} from 'lucide-react';
+import {safeInternalPath} from '@/lib/navigation';
 
 export default function AdminLogin(){
  const [identifier,setIdentifier]=useState('');
@@ -12,17 +12,21 @@ export default function AdminLogin(){
  const [error,setError]=useState('');
  const [replaceSession,setReplaceSession]=useState(false);
  const [busy,setBusy]=useState(false);
- const router=useRouter();
+ const [callbackUrl,setCallbackUrl]=useState('/admin');
  const {update}=useSession();
+ useEffect(()=>{
+  const requested=safeInternalPath(new URLSearchParams(window.location.search).get('callbackUrl')||'/admin','/admin',window.location.origin);
+  setCallbackUrl(requested==='/admin'||requested.startsWith('/admin/')?requested:'/admin');
+ },[]);
  async function submit(e:FormEvent){
    e.preventDefault();
    if(busy)return;
    setBusy(true); setError('');
    try{
-    const result=await signIn('credentials',{username:identifier,email:identifier,adminLogin:'true',password,replaceSession:String(replaceSession),redirect:false,callbackUrl:'/admin'});
+    const result=await signIn('credentials',{username:identifier,email:identifier,adminLogin:'true',password,replaceSession:String(replaceSession),redirect:false,callbackUrl});
     if(result?.ok){
-     void update().catch(refreshError=>console.error('Session refresh after administrator sign-in failed.',refreshError instanceof Error?refreshError.name:'UnknownError'));
-     router.replace('/admin');
+      try{await update()}catch(refreshError){console.error('Session refresh after administrator sign-in failed.',refreshError instanceof Error?refreshError.name:'UnknownError')}
+      window.location.replace(callbackUrl);
     }else{
      setError('Admin username/email or password is incorrect.');
     }

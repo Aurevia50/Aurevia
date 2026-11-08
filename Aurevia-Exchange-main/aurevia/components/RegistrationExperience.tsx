@@ -1,7 +1,6 @@
 'use client';
 
 import {FormEvent,useRef,useState} from 'react';
-import {useRouter} from 'next/navigation';
 import {signIn,useSession} from 'next-auth/react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -61,7 +60,6 @@ export default function RegistrationExperience(){
 	const [confirmationVisible,setConfirmationVisible]=useState(false);
 	const [busy,setBusy]=useState(false);
 	const submissionInFlight=useRef(false);
-	const router=useRouter();
 	const {update:updateSession}=useSession();
 	const residence=findCountry(details.residenceCountry);
 	const registrationFormValid=Boolean(
@@ -190,8 +188,8 @@ export default function RegistrationExperience(){
 				setError('Your account was created, but automatic sign-in failed. Sign in with your new email and password to continue.');
 				return;
 			}
-			void updateSession().catch(exception=>console.error('Session refresh after registration failed.',exception instanceof Error?exception.name:'UnknownError'));
-			router.replace('/dashboard');
+			try{await updateSession()}catch(exception){console.error('Session refresh after registration failed.',exception instanceof Error?exception.name:'UnknownError')}
+			window.location.replace('/dashboard');
 		}catch(exception){
 			const referenceId=requestId||createRegistrationRequestId();
 			console.error('[registration] Client could not process the API response.',{

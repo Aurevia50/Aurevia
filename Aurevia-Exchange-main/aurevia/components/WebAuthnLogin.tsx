@@ -1,7 +1,7 @@
 'use client';
 
 import {useEffect,useState,useCallback} from 'react';
-import {signIn} from 'next-auth/react';
+import {signIn,useSession} from 'next-auth/react';
 import {Fingerprint,Loader2} from 'lucide-react';
 import {useLocale} from '@/lib/i18n-context';
 
@@ -45,6 +45,7 @@ function assertionToJSON(assertion:PublicKeyCredential){
 
 export default function WebAuthnLogin({identifier,busy,onError,onSuccess}:WebAuthnLoginProps){
   const {translate}=useLocale();
+  const {update}=useSession();
   const [supported,setSupported]=useState(false);
 
   useEffect(()=>{
@@ -99,6 +100,7 @@ export default function WebAuthnLogin({identifier,busy,onError,onSuccess}:WebAut
         redirect:false,
       });
       if(result?.ok){
+        try{await update()}catch(error){console.error('Session refresh after biometric sign-in failed.',error instanceof Error?error.name:'UnknownError')}
         onSuccess();
       }else if(result?.error==='CredentialsSignin'){
         onError(translate('signInFailed'));
@@ -112,7 +114,7 @@ export default function WebAuthnLogin({identifier,busy,onError,onSuccess}:WebAut
         onError(translate('biometricFailed'));
       }
     }
-  },[identifier,busy,supported,onError,onSuccess,translate]);
+  },[identifier,busy,supported,onError,onSuccess,translate,update]);
 
   if(!supported)return null;
 

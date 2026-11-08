@@ -1135,6 +1135,27 @@ test('existing account can sign in without signup verification',async({page})=>{
 	await expect(page.getByRole('button',{name:/Notifications/})).toBeVisible();
 });
 
+test('sign-in returns to the protected dashboard requested before authentication',async({page})=>{
+	await page.goto('/dashboard');
+	await expect(page).toHaveURL(/\/login\?callbackUrl=/);
+	await waitForStartup(page);
+	await page.getByLabel('Email address').fill(fixture('LEGACY_USER_EMAIL'));
+	await page.getByLabel('Password',{exact:true}).fill(fixture('LEGACY_USER_PASSWORD'));
+	await page.getByRole('button',{name:'Sign in'}).click();
+	await page.waitForURL(url=>url.pathname==='/dashboard');
+	await expect(page.getByRole('heading',{name:'My Portfolio'})).toBeVisible();
+});
+
+test('administrator sign-in returns to the protected admin page requested before authentication',async({page})=>{
+	await page.goto('/admin/command-center');
+	await expect(page).toHaveURL(/\/admin\/login\?callbackUrl=/);
+	await page.getByLabel('Admin username or email').fill(fixture('ADMIN_EMAIL'));
+	await page.getByLabel('Admin password').fill(fixture('ADMIN_PASSWORD'));
+	await page.getByRole('button',{name:'Enter control center'}).click();
+	await page.waitForURL(url=>url.pathname==='/admin/command-center');
+	await expect(page.getByRole('heading',{name:'AI & API command center'})).toBeVisible();
+});
+
 test('multiple sessions can be reviewed and other sessions revoked server-side',async({page,browser})=>{
 	const user=await createIsolatedDemoUser('multiple-sessions');
 	const {email,password}=user;

@@ -2,7 +2,6 @@
 
 import {FormEvent,useEffect,useState} from 'react';
 import {signIn,useSession} from 'next-auth/react';
-import {useRouter} from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import {Eye,EyeOff,LoaderCircle,ShieldCheck} from 'lucide-react';
@@ -19,7 +18,6 @@ export default function Login(){
 	const [registered,setRegistered]=useState(false);
 	const [callbackUrl,setCallbackUrl]=useState('/dashboard');
 	const [busy,setBusy]=useState(false);
-	const router=useRouter();
 	const {update}=useSession();
 
 	useEffect(()=>{
@@ -44,8 +42,8 @@ export default function Login(){
 		try{
 			const result=await signIn('credentials',{username:identifier,email:identifier,password,redirect:false});
 			if(result?.ok){
-				void update().catch(error=>console.error('Session refresh after sign-in failed.',error instanceof Error?error.name:'UnknownError'));
-				router.replace(callbackUrl);
+				try{await update()}catch(error){console.error('Session refresh after sign-in failed.',error instanceof Error?error.name:'UnknownError')}
+				window.location.replace(callbackUrl);
 			}else if(result?.error==='CredentialsSignin'){
 				setError('Email address or password is incorrect.');
 			}else if(result?.error?.startsWith('AUTHENTICATION_SERVICE_UNAVAILABLE:')){
