@@ -35,25 +35,27 @@ export default function DisplayCurrencyPanel({values}:Props){
 	},[currency]);
 
 	async function changeCurrency(value:string){
+		const previous=currency;
 		setError('');
+		setCurrency(value);
 		try{
 			const response=await fetch('/api/currency-preference',{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({currency:value})});
 			const result=await response.json();
 			if(!response.ok)throw new Error(result.error||'Unable to save display currency.');
 			setCurrency(result.currency);
-		}catch(exception){setError(exception instanceof Error?exception.message:'Unable to save display currency.')}
+		}catch(exception){setCurrency(previous);setError(exception instanceof Error?exception.message:'Unable to save currency.')}
 	}
 
 	return <section className="account-panel card p-4" aria-label="Display currency">
 		<div className="grid gap-3 sm:grid-cols-[minmax(170px,220px)_1fr] sm:items-start">
-			<label className="account-label">Preferred display currency<select className="input mt-1 min-h-11" value={currency} disabled={!ready} onChange={event=>void changeCurrency(event.target.value)}>{currencies.map(code=><option key={code}>{code}</option>)}</select></label>
+			<label className="account-label">Display currency<select aria-label="Preferred display currency" className="input mt-1 min-h-11" value={currency} disabled={!ready} onChange={event=>void changeCurrency(event.target.value)}>{currencies.map(code=><option key={code}>{code}</option>)}</select></label>
 			<div className="text-sm" aria-live="polite">
 				{currency==='USD'
-					?<p>Balances remain recorded in USD. Changing this preference never exchanges funds.</p>
+					?<p>USD ledger values.</p>
 					:currentRate!==null
-						?<><p>Exchange rate: 1 USD = {currentRate.toLocaleString(undefined,{maximumSignificantDigits:10})} {currency}</p><div className="grid gap-1 sm:grid-cols-2">{values.map(({label,amount})=><p key={label}><span className="muted">{label}: </span>{amount===null?'Unavailable':`${money(Number(amount)*currentRate,currency)} approximate`} <span className="text-xs muted">(original: {amount===null?'Unavailable':money(Number(amount),'USD')})</span></p>)}</div><p className="mt-2 text-xs muted">{rate?.status==='INTERNAL'?'Internal reference rate · ':rate?.status==='STALE'?'Last known rate · may be outdated · ':''}Display conversion only · {rate?.source} · {rate?.observedAt?`updated ${new Date(rate.observedAt).toLocaleString()}`:'no provider timestamp'}</p></>
-						:<p className="text-xs text-amber-200">{rate===null&&!error?'Loading exchange rate…':error||'A reference exchange rate is unavailable.'}</p>}
-				{error&&<p className="mt-1 text-xs text-loss" role="alert">{error}</p>}
+						?<><p>Approximate · 1 USD = {currentRate.toLocaleString(undefined,{maximumSignificantDigits:8})} {currency}{rate?.status==='STALE'?' · rate may be outdated':''}</p><div className="grid gap-1 sm:grid-cols-2">{values.map(({label,amount})=><p key={label}><span className="muted">{label}: </span>{amount===null?'Unavailable':money(Number(amount)*currentRate,currency)}</p>)}</div></>
+						:!error?<p className="text-xs text-amber-200">Loading {currency} rate…</p>:null}
+				{error&&currency!=='USD'&&<p className="mt-1 text-xs text-loss" role="alert">{error}</p>}
 			</div>
 		</div>
 	</section>;

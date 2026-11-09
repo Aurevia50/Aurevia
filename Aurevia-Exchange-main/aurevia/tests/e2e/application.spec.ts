@@ -2723,7 +2723,34 @@ test('display currency preference persists across account and activity surfaces 
 	await expect(page.getByLabel('Preferred display currency')).toHaveValue('EUR');
 	await page.goto('/wallet/transactions');
 	await expect(page.getByLabel('Preferred display currency')).toHaveValue('EUR');
-	expect(Number((await page.request.get('/api/wallet').then(response=>response.json())).balance)).toBe(balanceBefore);
+	const demoBalanceAfter=Number((await page.request.get('/api/wallet').then(response=>response.json())).balance);
+	expect(demoBalanceAfter).toBe(balanceBefore);
+	await selectAccountMode(page,'REAL');
+	const realBalanceBefore=Number((await page.request.get('/api/wallet').then(response=>response.json())).balance);
+	await page.goto('/wallet');
+	const walletCurrency=page.getByLabel('Wallet display currency');
+	await expect(walletCurrency).toHaveValue('EUR');
+	await walletCurrency.selectOption('GBP');
+	await expect(page.getByText('REAL GBP BALANCE')).toBeVisible();
+	await expect(page.getByText('Approximate · USD ledger')).toBeVisible();
+	await expect.poll(async()=>(await page.request.get('/api/currency-preference').then(response=>response.json())).currency).toBe('GBP');
+	expect(Number((await page.request.get('/api/wallet').then(response=>response.json())).balance)).toBe(realBalanceBefore);
+});
+
+test('wallet balance renders before auxiliary page data returns',async({page})=>{
+	await loginAs(page,fixture('USER_EMAIL'),fixture('USER_PASSWORD'));
+	await selectAccountMode(page,'REAL');
+	let auxiliaryCompleted=0;
+	const auxiliaryPaths=['/api/payment-methods','/api/profile','/api/currency-preference','/api/activity'];
+	await page.route(url=>auxiliaryPaths.includes(url.pathname),async route=>{
+		await new Promise(resolve=>setTimeout(resolve,3000));
+		auxiliaryCompleted+=1;
+		await route.continue();
+	});
+	await page.goto('/wallet');
+	const balance=page.locator('.wallet-signature-card .wallet-balance-value');
+	await expect(balance).not.toHaveText(/Loading|Unavailable/,{timeout:20_000});
+	expect(auxiliaryCompleted).toBe(0);
 });
 
 test('administrator market tick is protected, deterministic, and idempotent',async({browser,page})=>{

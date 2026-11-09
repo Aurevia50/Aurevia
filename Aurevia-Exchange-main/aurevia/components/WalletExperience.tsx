@@ -38,12 +38,12 @@ const formatFundingMethodLabel=(method:string)=>{
 	return value.replace(/^Internal\s+simulated\b/i,'Internal').replace(/^Admin configured\s+/i,'Administrator ').replace(/\s+REAL deposit$/i,' Real Account deposit').replace(/\bsimulated\b/gi,'').replace(/\s+/g,' ').trim();
 };
 const withdrawalEligibilityMessage=(issue:ReturnType<typeof getWithdrawalEligibilityIssue>)=>{
-	if(issue==='BELOW_MINIMUM')return `The requested amount is below the ${money(MIN_REAL_WITHDRAWAL_USD,'USD')} minimum. You do not need to trade more or pay a separate fee to submit a valid request.`;
-	if(issue==='ABOVE_MAXIMUM')return `The maximum REAL withdrawal request is ${money(MAX_REAL_WITHDRAWAL_USD,'USD')}.`;
-	if(issue==='INSUFFICIENT_RESERVE')return `Your available balance cannot cover this request and retain ${money(REQUIRED_REAL_WITHDRAWAL_RESERVE_USD,'USD')}. You do not need to trade more or pay a separate fee to qualify.`;
+	if(issue==='BELOW_MINIMUM')return `Minimum withdrawal: ${money(MIN_REAL_WITHDRAWAL_USD,'USD')}. No separate fee is required.`;
+	if(issue==='ABOVE_MAXIMUM')return `Maximum withdrawal: ${money(MAX_REAL_WITHDRAWAL_USD,'USD')}.`;
+	if(issue==='INSUFFICIENT_RESERVE')return `Keep ${money(REQUIRED_REAL_WITHDRAWAL_RESERVE_USD,'USD')} available after reservations. No separate fee is required.`;
 	return '';
 };
-const fundingUnavailableMessage=(status:PaymentMethodsResponse['fundingStatus'])=>status==='DISABLED'?'Internal ledger requests are temporarily disabled for this account. No balance was changed.':'Internal ledger requests are temporarily unavailable. No balance was changed.';
+const fundingUnavailableMessage=(status:PaymentMethodsResponse['fundingStatus'])=>status==='DISABLED'?'Funding is disabled. Balance unchanged.':'Funding is unavailable. Balance unchanged.';
 const validateFundingAmount=(amountText:string,mode:'DEPOSIT'|'WITHDRAWAL',balance:number|null,minimum:number|undefined,maximum:number|undefined)=>{
 	const numeric=Number(amountText);
 	if(!amountText.trim()||!Number.isFinite(numeric)||numeric<=0)return 'Enter a positive amount.';
@@ -139,6 +139,17 @@ export default function WalletExperience(){
 		:ledgerAvailableBalance;
 	const withdrawalAmounts=calculateWithdrawalAmounts(amount);
 	const currentDisplayRate=currencyRate?.rate!==null&&currencyRate?.rate!==undefined&&Number.isFinite(Number(currencyRate.rate))&&Number(currencyRate.rate)>0?Number(currencyRate.rate):null;
+	const displayMoney=(amount:number|null|undefined)=>{
+		if(amount===null||amount===undefined||!Number.isFinite(amount))return 'Unavailable';
+		if(data.accountMode!=='REAL'||displayCurrency==='USD')return money(amount,'USD');
+		if(currentDisplayRate===null)return `— ${displayCurrency}`;
+		return new Intl.NumberFormat(undefined,{style:'currency',currency:displayCurrency,maximumFractionDigits:2}).format(amount*currentDisplayRate);
+	};
+	const displayRateDescription=displayCurrency==='USD'
+		?'USD ledger balance.'
+		:currentDisplayRate!==null
+			?`Approximate display · USD ledger · 1 USD = ${currentDisplayRate.toLocaleString(undefined,{maximumSignificantDigits:8})} ${displayCurrency}${currencyRate?.status==='STALE'?' · rate may be outdated':''}.`
+			:currencyError||`Loading ${displayCurrency} rate…`;
 	const realKycApproved=profile?.kycStatus==='APPROVED'&&profile.documents>0&&profile.verificationProfileSubmitted;
 	const realWithdrawalKycBlocked=data.accountMode==='REAL'&&!!profile&&!realKycApproved;
 	const realWithdrawalBlocked=data.accountMode==='REAL'&&!!profile&&(!profile.withdrawalEnabled||profile.accountRestricted);
@@ -146,15 +157,17 @@ export default function WalletExperience(){
 		const requestId=++latestRequest.current;
 		if(showLoading)setLoading(true);
 		setError('');
-		const requests=await Promise.allSettled([
+		const walletTask=Promise.allSettled([
 			fetch('/api/wallet',{cache:'no-store'}).then(async response=>({response,result:await response.json()})),
+		]);
+		const auxiliaryTask=Promise.allSettled([
 			fetch('/api/payment-methods',{cache:'no-store'}).then(async response=>({response,result:await response.json()})),
 			fetch('/api/profile',{cache:'no-store'}).then(async response=>({response,result:await response.json()})),
 			fetch('/api/currency-preference',{cache:'no-store'}).then(async response=>({response,result:await response.json()})),
 			fetch('/api/activity?category=all&limit=5',{cache:'no-store'}).then(async response=>({response,result:await response.json()})),
 		]);
+		const [walletRequest]=await walletTask;
 		if(requestId!==latestRequest.current)return;
-		const [walletRequest,methodsRequest,profileRequest,currencyPreferenceRequest,activityRequest]=requests;
 		if(walletRequest.status==='fulfilled'&&walletRequest.value.response.ok&&isWalletData(walletRequest.value.result)){
 			setData({...walletRequest.value.result,adminLedgerReceipts:walletRequest.value.result.adminLedgerReceipts||[],tradingTransactions:walletRequest.value.result.tradingTransactions||[]});setHasWalletData(true);
 		}else{
@@ -163,6 +176,9 @@ export default function WalletExperience(){
 			setHasWalletData(false);
 			setError(result?.error||'Wallet data is temporarily unavailable. Please try again.');
 		}
+		setLoading(false);
+		const [methodsRequest,profileRequest,currencyPreferenceRequest,activityRequest]=await auxiliaryTask;
+		if(requestId!==latestRequest.current)return;
 		if(methodsRequest.status==='fulfilled'&&methodsRequest.value.response.ok&&isPaymentMethodsResponse(methodsRequest.value.result)){
 			setMethods(methodsRequest.value.result.methods);
 			setFundingStatus(methodsRequest.value.result.fundingStatus);
@@ -191,7 +207,6 @@ export default function WalletExperience(){
 			if(SUPPORTED_CURRENCIES.some(item=>item===preferred))setCurrency(preferred);
 			currencyPreferenceInitialized.current=true;
 		}
-		setLoading(false);
 	},[]);
 
 	useEffect(()=>{
@@ -206,13 +221,16 @@ export default function WalletExperience(){
 		return()=>{current=false};
 	},[displayCurrency]);
 	async function updateDisplayCurrency(value:string){
+		const previous=displayCurrency;
+		currencyPreferenceInitialized.current=true;
 		setCurrencyError('');
+		setDisplayCurrency(value);
 		try{
 			const response=await fetch('/api/currency-preference',{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({currency:value})});
 			const result=await response.json();
 			if(!response.ok)throw new Error(result.error||'Unable to save display currency.');
 			setDisplayCurrency(result.currency);
-		}catch(exception){setCurrencyError(exception instanceof Error?exception.message:'Unable to save display currency.')}
+		}catch(exception){setDisplayCurrency(previous);setCurrencyError(exception instanceof Error?exception.message:'Unable to save currency.')}
 	}
 	async function copyBtcAddress(){
 		if(!btcAddress)return;
@@ -291,7 +309,7 @@ export default function WalletExperience(){
 			const result=await response.json();
 			if(!response.ok)throw new Error(result.error||'Unable to submit this request.');
 			setSubmittedReceipt(result as FundingRecord);
-			setMessage(response.status===200?`Request ${result.id} already exists with status ${String(result.status).replaceAll('_',' ')}. No new request was created.`:`Request ${result.id} submitted for administrator review. The ledger has not been posted.`);
+			setMessage(response.status===200?`Request already exists · ${String(result.status).replaceAll('_',' ')}.`:'Request submitted for review.');
 			setAmount('');setTransactionReference('');setNote('');setProofFile(null);setIdempotencyKey('');setKeyFingerprint('');setConfirming(false);setReauthPassword('');
 			await load();
 		}catch(exception){setError(exception instanceof Error?exception.message:'Unable to submit this request.');}
@@ -306,7 +324,7 @@ export default function WalletExperience(){
 			const response=await fetch(`/api/wallet/${encodeURIComponent(request.id)}/receipt`,{method:'POST',body});
 			const result=await response.json();if(!response.ok)throw new Error(result.error||'Receipt upload failed.');
 			const delivery=result.emailDelivery==='sent'?'Support email sent.':result.emailDelivery==='failed'?'Support email failed; admin notification is recorded.':'Email is not configured; admin notification is recorded.';
-			setMessage(`Receipt stored privately. Funds were not credited. ${delivery}`);setReceiptFiles(current=>({...current,[request.id]:undefined}));await load();
+			setMessage(`Receipt saved; no credit made. ${delivery}`);setReceiptFiles(current=>({...current,[request.id]:undefined}));await load();
 		}catch(exception){setError(exception instanceof Error?exception.message:'Receipt upload failed.')}
 		finally{setReceiptBusy('')}
 	}
@@ -325,14 +343,14 @@ export default function WalletExperience(){
 		try{
 			const response=await fetch(`/api/funding/${encodeURIComponent(request.id)}/cancel`,{method:'POST',headers:{'content-type':'application/json','Idempotency-Key':window.crypto.randomUUID()},body:JSON.stringify({})});
 			const result=await response.json();if(!response.ok)throw new Error(result.error||'Unable to cancel withdrawal.');
-			setMessage('Withdrawal request cancelled. The reservation was released; no payout or ledger debit occurred.');
+			setMessage('Request cancelled. Reservation released.');
 			await load();
 		}catch(exception){setError(exception instanceof Error?exception.message:'Unable to cancel withdrawal.')}
 		finally{setSubmitting(false)}
 	}
 
 	return <><Nav/><main className="account-page wallet-premium-page" data-wallet-view={workflow?'workflow':'overview'}>
-		<header className="wallet-page-heading"><div><span className="wallet-eyebrow">{data.accountMode} ACCOUNT · PRIVATE WALLET</span><h1>{workflow?`${type==='DEPOSIT'?'Deposit':'Withdraw'} funds`:'Wallet'}</h1><p>{data.accountMode==='DEMO'?'A separate virtual USD wallet for practice activity.':'Your Aurevia REAL account ledger, requests and reservations.'}</p></div><div className="wallet-heading-actions"><span className={`status-pill ${data.accountMode==='DEMO'?'mode-demo':'mode-real'}`}>{data.accountMode==='DEMO'?'DEMO · VIRTUAL':'REAL · LEDGER'}</span><button type="button" className="wallet-refresh" aria-label="Refresh wallet" title="Refresh wallet" onClick={()=>void load(true)} disabled={loading}><RefreshCw size={16}/></button></div></header>
+		<header className="wallet-page-heading"><div><span className="wallet-eyebrow">{data.accountMode} ACCOUNT · PRIVATE WALLET</span><h1>{workflow?`${type==='DEPOSIT'?'Deposit':'Withdraw'} funds`:'Wallet'}</h1><p>{data.accountMode==='DEMO'?'Virtual USD practice wallet.':'REAL account ledger.'}</p></div><div className="wallet-heading-actions"><span className={`status-pill ${data.accountMode==='DEMO'?'mode-demo':'mode-real'}`}>{data.accountMode==='DEMO'?'DEMO · VIRTUAL':'REAL · LEDGER'}</span><button type="button" className="wallet-refresh" aria-label="Refresh wallet" title="Refresh wallet" onClick={()=>void load(true)} disabled={loading}><RefreshCw size={16}/></button></div></header>
 		{!workflow&&<>
 			{error&&<p className="wallet-feedback is-error" role="alert">{error}</p>}
 			<section className="wallet-balance-panel wallet-signature-card">
@@ -346,11 +364,11 @@ export default function WalletExperience(){
 					<div className="wallet-art-plate wallet-art-plate-front"><span className="wallet-art-chip"/><span className="wallet-art-mark">A</span><i/><i/></div>
 					<div className="wallet-art-pocket"><span>AUREVIA · INVEST</span></div>
 				</div>
-				<div className="wallet-balance-heading"><span className="wallet-eyebrow">{data.accountMode==='DEMO'?'VIRTUAL USD BALANCE':'AUREVIA USD LEDGER'}</span><button type="button" className="wallet-balance-toggle" aria-label={balanceVisible?'Hide balance':'Show balance'} aria-pressed={!balanceVisible} onClick={()=>setBalanceVisible(value=>!value)}>{balanceVisible?<EyeOff size={16}/>:<Eye size={16}/>}<span>{balanceVisible?'Hide':'Show'}</span></button></div>
+				<div className="wallet-balance-heading"><span className="wallet-eyebrow">{data.accountMode==='DEMO'?'VIRTUAL USD BALANCE':`REAL ${displayCurrency} BALANCE`}</span><div className="flex items-center gap-2">{data.accountMode==='REAL'&&<label className="wallet-display-currency">Currency<select aria-label="Wallet display currency" className="input" value={displayCurrency} onChange={event=>void updateDisplayCurrency(event.target.value)}>{SUPPORTED_CURRENCIES.map(code=><option key={code}>{code}</option>)}</select></label>}<button type="button" className="wallet-balance-toggle" aria-label={balanceVisible?'Hide balance':'Show balance'} aria-pressed={!balanceVisible} onClick={()=>setBalanceVisible(value=>!value)}>{balanceVisible?<EyeOff size={16}/>:<Eye size={16}/>}<span>{balanceVisible?'Hide':'Show'}</span></button></div></div>
 				<div className="wallet-balance-caption">Available balance</div>
-				<div className="wallet-balance-value" aria-live="polite">{loading?translate('loading'):!hasWalletData||availableBalance===null?'Unavailable':balanceVisible?money(availableBalance,'USD'):'•••••• USD'}</div>
-				<div className="wallet-balance-foot"><span>{data.accountMode==='DEMO'?'Practice account · no real funds':'Available after pending withdrawal reservations'}</span><span className="wallet-currency-mark">USD</span></div>
-				{data.accountMode==='REAL'&&<div className="wallet-reservation-row"><span>Pending / reserved</span><strong>{loading||!hasWalletData?'—':balanceVisible?money(pendingWithdrawal,'USD'):'•••••• USD'}</strong><span>{hasWalletData?data.transactions.filter(item=>reserves.includes(item.status)).length:0} pending requests</span></div>}
+				<div className="wallet-balance-value" aria-live="polite">{loading?translate('loading'):!hasWalletData||availableBalance===null?'Unavailable':balanceVisible?displayMoney(availableBalance):`•••••• ${data.accountMode==='REAL'?displayCurrency:'USD'}`}</div>
+				<div className="wallet-balance-foot"><span>{data.accountMode==='DEMO'?'Practice account · no real funds':displayCurrency==='USD'?'Available after reservations':'Approximate · USD ledger'}</span><span className="wallet-currency-mark">{data.accountMode==='REAL'?displayCurrency:'USD'}</span></div>
+				{data.accountMode==='REAL'&&<div className="wallet-reservation-row"><span>Pending / reserved</span><strong>{loading||!hasWalletData?'—':balanceVisible?displayMoney(pendingWithdrawal):`•••••• ${displayCurrency}`}</strong><span>{hasWalletData?data.transactions.filter(item=>reserves.includes(item.status)).length:0} pending</span></div>}
 			</section>
 			<AureviaExchangeId id={data.aureviaExchangeId} className="mt-4"/>
 			{!hasWalletData&&<p className="wallet-feedback is-error" role="status">{loading?'Loading your authenticated wallet…':'Balance could not be retrieved. No balance is assumed.'}</p>}
@@ -361,11 +379,11 @@ export default function WalletExperience(){
 			</nav>:<nav className="wallet-quick-actions wallet-quick-actions-demo" aria-label="Wallet actions"><Link href="/trade" className="wallet-quick-action"><span className="wallet-action-icon"><ArrowUpRight size={19}/></span><span>Practice trade</span></Link><Link href="/activity" className="wallet-quick-action"><span className="wallet-action-icon"><ArrowRight size={19}/></span><span>Activity</span></Link></nav>}
 			<section className="wallet-activity-panel">
 				<div className="wallet-section-heading"><div><span className="wallet-eyebrow">ACCOUNT RECORD</span><h2>Recent activity</h2></div><Link href={data.accountMode==='DEMO'?'/activity':'/wallet/transactions'}>{data.accountMode==='DEMO'?'View activity':'View all'} <ArrowRight size={14}/></Link></div>
-				{loading?<p className="wallet-empty" role="status">Loading recent activity…</p>:recentActivity.length?recentActivity.map(item=><Link className="wallet-activity-row" href={item.link||'/activity'} key={`${item.source}:${item.id}`}><span className={`wallet-activity-icon ${item.source==='ledger'?'is-ledger':''}`}>{item.source==='funding'?<WalletCards size={16}/>:item.source==='ledger'&&!item.action.toLowerCase().includes('debit')?<ArrowDownLeft size={16}/>:<ArrowUpRight size={16}/>}</span><span className="wallet-activity-copy"><strong>{item.action}</strong><small>{item.asset} · {new Date(item.timestamp).toLocaleDateString()} · {item.status}</small></span><span className="wallet-activity-amount">{balanceVisible?item.amount||'Details':'••••••'}<small>{item.source==='funding'?'Request':item.source==='ledger'?'Ledger':'Activity'}</small></span></Link>):<p className="wallet-empty">No recent wallet activity is recorded for this account mode.</p>}
+				{loading?<p className="wallet-empty" role="status">Loading activity…</p>:recentActivity.length?recentActivity.map(item=><Link className="wallet-activity-row" href={item.link||'/activity'} key={`${item.source}:${item.id}`}><span className={`wallet-activity-icon ${item.source==='ledger'?'is-ledger':''}`}>{item.source==='funding'?<WalletCards size={16}/>:item.source==='ledger'&&!item.action.toLowerCase().includes('debit')?<ArrowDownLeft size={16}/>:<ArrowUpRight size={16}/>}</span><span className="wallet-activity-copy"><strong>{item.action}</strong><small>{item.asset} · {new Date(item.timestamp).toLocaleDateString()} · {item.status}</small></span><span className="wallet-activity-amount">{balanceVisible?item.amount||'Details':'••••••'}<small>{item.source==='funding'?'Request':item.source==='ledger'?'Ledger':'Activity'}</small></span></Link>):<p className="wallet-empty">No recent activity.</p>}
 			</section>
 			{data.accountMode==='REAL'&&<details className="wallet-settings">
 				<summary><span><span className="wallet-eyebrow">PREFERENCES</span><strong>Display settings</strong></span><span className="wallet-settings-current">{displayCurrency} <span aria-hidden="true">⌄</span></span></summary>
-				<div className="wallet-settings-content"><label>Preferred display currency<select className="input" value={displayCurrency} onChange={event=>void updateDisplayCurrency(event.target.value)}>{SUPPORTED_CURRENCIES.map(code=><option key={code}>{code}</option>)}</select></label><div className="wallet-rate-copy" aria-live="polite">{displayCurrency==='USD'?<p>Original ledger amounts remain in USD. This preference never exchanges funds.</p>:currentDisplayRate!==null?<><p>Reference rate: 1 USD = {currentDisplayRate.toLocaleString(undefined,{maximumSignificantDigits:10})} {displayCurrency}</p>{data.balance!==null&&<p>Approximate display: {balanceVisible?new Intl.NumberFormat(undefined,{style:'currency',currency:displayCurrency}).format(Number(data.balance)*currentDisplayRate):`•••••• ${displayCurrency}`} · Ledger balance: {balanceVisible?money(Number(data.balance),'USD'):'•••••• USD'}</p>}<small>{currencyRate?.status==='INTERNAL'?'Indicative rate · ':currencyRate?.status==='STALE'?'Last known rate · may be outdated · ':''}{currencyRate?.observedAt?`Updated ${new Date(currencyRate.observedAt).toLocaleString()}`:'Rate update time unavailable'}. Display only; no ledger conversion.</small></>:<p className="wallet-rate-error">{currencyError||'A reference exchange rate is unavailable.'}</p>}{currencyError&&displayCurrency!=='USD'&&<p className="wallet-rate-error" role="alert">{currencyError}</p>}</div></div>
+				<div className="wallet-settings-content"><p className="wallet-rate-copy" aria-live="polite">{displayRateDescription}</p>{currencyError&&displayCurrency!=='USD'&&<p className="wallet-rate-error" role="alert">{currencyError}</p>}</div>
 			</details>}
 			{data.accountMode==='REAL'&&(data.transactions.length>0||data.adminLedgerReceipts.length>0||data.tradingTransactions.length>0)&&<details className="wallet-ledger-records">
 				<summary>Wallet transactions and receipts <span>{data.transactions.length+data.adminLedgerReceipts.length+data.tradingTransactions.length} records</span></summary>
@@ -393,17 +411,17 @@ export default function WalletExperience(){
 		<section className="wallet-balance-panel">
 			<div className="wallet-balance-heading"><div className="account-kicker">{translate('availableBalances',{mode:data.accountMode.toLowerCase()})}</div><button type="button" className="wallet-balance-toggle" aria-label={balanceVisible?'Hide balances':'Show balances'} aria-pressed={!balanceVisible} onClick={()=>setBalanceVisible(value=>!value)}>{balanceVisible?<EyeOff size={16}/>:<Eye size={16}/>}<span>{balanceVisible?'Hide':'Show'}</span></button></div>
 			<div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-				<div className="text-xs uppercase tracking-[0.18em] text-emerald-200/80">{data.accountMode==='DEMO'?'Internal virtual DEMO balance':'Aurevia REAL available ledger balance'}</div>
-				<div className="wallet-balance-value mt-2 text-3xl font-semibold text-white">{loading?translate('loading'):!hasWalletData||data.balance===null?'Unavailable':balanceVisible?money(Number(data.balance),'USD'):'•••••• USD'}</div>
-				<div className="mt-1 text-sm text-slate-300">USD account balance and pending review totals</div>
+				<div className="text-xs uppercase tracking-[0.18em] text-emerald-200/80">{data.accountMode==='DEMO'?'Internal virtual DEMO balance':`Aurevia REAL ${displayCurrency} balance`}</div>
+				<div className="wallet-balance-value mt-2 text-3xl font-semibold text-white">{loading?translate('loading'):!hasWalletData||data.balance===null?'Unavailable':balanceVisible?displayMoney(Number(data.balance)):`•••••• ${data.accountMode==='REAL'?displayCurrency:'USD'}`}</div>
+				<div className="mt-1 text-sm text-slate-300">{data.accountMode==='REAL'&&displayCurrency!=='USD'?'Approximate · USD ledger':'Account balance'}</div>
 				{data.accountMode==='REAL'&&<div className="mt-3 border-t border-white/10 pt-3 text-sm text-slate-300">Available for withdrawal after pending reservations: <b className="text-white">{loading||!hasWalletData||data.withdrawableBalance===null||data.withdrawableBalance===undefined?'Unavailable':balanceVisible?money(Number(data.withdrawableBalance),'USD'):'•••••• USD'}</b><p className="mt-1 text-xs muted">Approval reserves the amount. The ledger debit is posted once only after an administrator records the actual external processing outcome.</p></div>}
 			</div>
 			<p className="wallet-demo-note">{hasWalletData?translate('walletDemoNote'):'Balance could not be retrieved. No balance is assumed.'}</p>
 			<div className="wallet-currency-list">{data.balances.filter(item=>item.currency!=='BTC').map(item=><span key={item.currency}>{balanceVisible?money(Number(item.balance),item.currency):`${item.currency} ••••••`}</span>)}</div>
 			<div className="mt-4 grid gap-2 border-t border-white/10 pt-4 sm:grid-cols-[minmax(170px,220px)_1fr] sm:items-end">
-				<label className="block text-xs muted">Preferred display currency<select className="input mt-1 min-h-11" value={displayCurrency} onChange={event=>void updateDisplayCurrency(event.target.value)}>{['USD','EUR','GBP','NGN','CAD','AUD','CHF','JPY'].map(code=><option key={code}>{code}</option>)}</select></label>
+			<label className="block text-xs muted">Display currency<select className="input mt-1 min-h-11" value={displayCurrency} onChange={event=>void updateDisplayCurrency(event.target.value)}>{SUPPORTED_CURRENCIES.map(code=><option key={code}>{code}</option>)}</select></label>
 				<div className="text-sm" aria-live="polite">
-					{displayCurrency==='USD'?<p>Original ledger amounts shown in their account currencies. Changing this preference never exchanges funds.</p>:currentDisplayRate!==null?<><p>Exchange rate: 1 USD = {currentDisplayRate.toLocaleString(undefined,{maximumSignificantDigits:10})} {displayCurrency}</p>{data.balance!==null&&<p>Approximate display: {balanceVisible?new Intl.NumberFormat(undefined,{style:'currency',currency:displayCurrency}).format(Number(data.balance)*currentDisplayRate):`•••••• ${displayCurrency}`} · Original ledger balance: {balanceVisible?money(Number(data.balance),'USD'):'•••••• USD'}</p>}<p className="mt-1 text-xs muted">{currencyRate?.status==='INTERNAL'?'Internal reference rate · ':currencyRate?.status==='STALE'?'Last known rate · may be outdated · ':''}Rate source: {currencyRate?.source} · {currencyRate?.observedAt?`Updated ${new Date(currencyRate.observedAt).toLocaleString()}`:'no provider timestamp'}. Display only; no ledger conversion.</p></>:<p className="text-xs text-amber-200">{currencyError||'A reference exchange rate is unavailable.'}</p>}
+				{displayCurrency==='USD'?<p>USD ledger balance.</p>:currentDisplayRate!==null?<p>Approximate display · 1 USD = {currentDisplayRate.toLocaleString(undefined,{maximumSignificantDigits:8})} {displayCurrency}{currencyRate?.status==='STALE'?' · rate may be outdated':''}.</p>:<p className="text-xs text-amber-200">{currencyError||`Loading ${displayCurrency} rate…`}</p>}
 					{currencyError&&displayCurrency!=='USD'&&<p className="mt-1 text-xs text-loss" role="alert">{currencyError}</p>}
 				</div>
 			</div>
