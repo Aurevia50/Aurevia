@@ -44,7 +44,7 @@ export default function AdminInvestmentPanel(){
  async function transition(item:InvestmentRequest,action:string){
   const detail=controls[item.id]||controlsFor(item);const key=`${item.id}:${action}`;if(busy)return;setBusy(key);setError('');setNotice('');
   const body:{action:string;requestId:string;note?:string}={action,requestId:item.id,note:detail.note||undefined};
-  try{const response=await fetch('/api/admin/investments',{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify(body)});const result=await response.json();if(!response.ok)throw new Error(result.error||'Unable to update this request.');setNotice(`Request moved to ${result.status.replaceAll('_',' ')}.`);await load();}
+  try{const response=await fetch('/api/admin/investments',{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify(body)});const result=await response.json();if(!response.ok)throw new Error(result.error||'Unable to update this request.');setData(current=>({...current,requests:current.requests.map(request=>request.id===item.id?{...request,status:result.status,adminNote:detail.note||request.adminNote}:request)}));setNotice(`Request moved to ${result.status.replaceAll('_',' ')}.`);await load();}
   catch(exception){setError(exception instanceof Error?exception.message:'Unable to update this request.');}
   finally{setBusy('');}
  }
@@ -70,6 +70,17 @@ export default function AdminInvestmentPanel(){
   finally{setBusy('')}
  }
  function actionsFor(status:string){if(status==='PENDING_APPROVAL')return ['approve','reject'];if(status==='APPROVED')return ['activate','cancel'];if(status==='ACTIVE')return ['pause','complete','cancel'];if(status==='PAUSED')return ['activate','complete','cancel'];if(status==='COMPLETED')return ['settle'];return [];}
+ function renderRequests(requests:InvestmentRequest[]){
+  return requests.map(item=>{const itemControls=controls[item.id]||controlsFor(item);const actions=actionsFor(item.status);return <article key={item.id}><header><div><span className="account-kicker">{item.accountMode} · {item.opportunity.category}</span><h3>{item.opportunity.title}</h3><p>{item.user.name||item.user.email} · {currency(item.amount)} · {item.opportunity.riskLevel}</p></div><span className={`status-pill ${item.accountMode==='DEMO'?'mode-demo':'mode-real'}`}>{item.status.replaceAll('_',' ')}</span></header>
+    <div className="admin-investment-controls"><label className="account-label">Admin note<input className="input" maxLength={500} value={itemControls.note} onChange={event=>updateControls(item.id,'note',event.target.value)}/></label>
+    </div>
+    {actions.length>0&&<div className="admin-investment-buttons">{actions.map(action=><button type="button" key={action} className={`btn ${action==='reject'||action==='cancel'?'bg-white/5':'bg-gold text-black'}`} disabled={!!busy} onClick={()=>void transition(item,action)}>{busy===`${item.id}:${action}`?'Saving…':action.replaceAll('_',' ')}</button>)}</div>}
+    <small className="muted">Request {item.id} · submitted {new Date(item.requestedAt).toLocaleString()}{item.externalExecutionReference?` · execution ref ${item.externalExecutionReference}`:''}{item.settlementReference?` · settlement ref ${item.settlementReference}`:''}</small>
+   </article>});
+ }
+ const reviewRequests=data.requests.filter(item=>item.status==='PENDING_APPROVAL');
+ const lifecycleRequests=data.requests.filter(item=>['APPROVED','ACTIVE','PAUSED','COMPLETED'].includes(item.status));
+ const historicalRequests=data.requests.filter(item=>['REJECTED','CANCELLED','SETTLED'].includes(item.status));
  const pending=data.requests.filter(item=>item.status==='PENDING_APPROVAL').length;const active=data.requests.filter(item=>item.status==='ACTIVE'||item.status==='PAUSED').length;
 
  return <div className="admin-investments">
@@ -118,13 +129,14 @@ export default function AdminInvestmentPanel(){
     {loading&&!data.opportunities.length?<p className="account-empty" role="status">Loading opportunities…</p>:data.opportunities.length?<div className="admin-opportunity-list">{data.opportunities.map(item=><article key={item.id}><div><b>{item.title}</b><span>{item.category} · {item.riskLevel} · {item.durationDays} days</span><small>{currency(item.minimumAmount)} – {currency(item.maximumAmount)} · {item._count.requests} requests</small></div><div className="admin-opportunity-actions"><span className="status-pill">{item.status}</span><button type="button" className="icon-action" aria-label={`Edit ${item.title}`} onClick={()=>editOpportunity(item)}><Edit3 size={14}/></button><div>{statuses.filter(status=>status!==item.status).map(status=><button key={status} type="button" className="text-link" onClick={async()=>{setBusy(item.id);try{const response=await fetch('/api/admin/investments',{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({action:'update-opportunity',id:item.id,status})});const result=await response.json();if(!response.ok)throw new Error(result.error||'Unable to change opportunity status.');await load();}catch(exception){setError(exception instanceof Error?exception.message:'Unable to change status.');}finally{setBusy('');}}} disabled={busy===item.id}>{status==='AVAILABLE'?<Check size={13}/>:null}{status}</button>)}</div></div></article>)}</div>:<p className="account-empty">No investment opportunities configured.</p>}
    </section>
   </div>
-  <section className="account-panel card p-5 mt-4"><div className="account-panel-title"><div><h2>Investment requests</h2><p className="account-panel-subtitle">Both account modes use recorded investment lifecycle actions and virtual payouts. No external execution or settlement is performed.</p></div></div>
-   {data.requests.length?<div className="admin-investment-request-list">{data.requests.map(item=>{const itemControls=controls[item.id]||controlsFor(item);const actions=actionsFor(item.status);return <article key={item.id}><header><div><span className="account-kicker">{item.accountMode} · {item.opportunity.category}</span><h3>{item.opportunity.title}</h3><p>{item.user.name||item.user.email} · {currency(item.amount)} · {item.opportunity.riskLevel}</p></div><span className={`status-pill ${item.accountMode==='DEMO'?'mode-demo':'mode-real'}`}>{item.status.replaceAll('_',' ')}</span></header>
-    <div className="admin-investment-controls"><label className="account-label">Admin note<input className="input" maxLength={500} value={itemControls.note} onChange={event=>updateControls(item.id,'note',event.target.value)}/></label>
-    </div>
-    {actions.length>0&&<div className="admin-investment-buttons">{actions.map(action=><button type="button" key={action} className={`btn ${action==='reject'||action==='cancel'?'bg-white/5':'bg-gold text-black'}`} disabled={!!busy} onClick={()=>void transition(item,action)}>{busy===`${item.id}:${action}`?'Saving…':action.replaceAll('_',' ')}</button>)}</div>}
-    <small className="muted">Request {item.id} · submitted {new Date(item.requestedAt).toLocaleString()}{item.externalExecutionReference?` · execution ref ${item.externalExecutionReference}`:''}{item.settlementReference?` · settlement ref ${item.settlementReference}`:''}</small>
-   </article>;})}</div>:<p className="account-empty">No investment requests are awaiting or have completed review.</p>}
+  <section className="account-panel card p-5 mt-4"><div className="account-panel-title"><div><h2>Investment review queue</h2><p className="account-panel-subtitle">Accepted requests move to the lifecycle queue; rejected requests remain in history. No external execution or settlement is performed.</p></div><span className="status-pill">{reviewRequests.length} awaiting review</span></div>
+   {reviewRequests.length?<div className="admin-investment-request-list">{renderRequests(reviewRequests)}</div>:<p className="account-empty">No investment requests are awaiting review.</p>}
+  </section>
+  <section className="account-panel card p-5 mt-4"><div className="account-panel-title"><div><h2>Approved and active lifecycle</h2><p className="account-panel-subtitle">Approved requests remain here for activation, completion, or cancellation.</p></div></div>
+   {lifecycleRequests.length?<div className="admin-investment-request-list">{renderRequests(lifecycleRequests)}</div>:<p className="account-empty">No approved or active investments.</p>}
+  </section>
+  <section className="account-panel card p-5 mt-4"><div className="account-panel-title"><div><h2>Investment request history</h2><p className="account-panel-subtitle">Completed, rejected, cancelled, and settled request records are retained for review.</p></div></div>
+   {historicalRequests.length?<div className="admin-investment-request-list">{renderRequests(historicalRequests)}</div>:<p className="account-empty">No completed investment requests.</p>}
   </section>
  </div>;
 }

@@ -95,7 +95,7 @@
     "eslint": "^10.14.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.13.0",
-    "lighthouse": "^12.8.2",
+    "lighthouse": "^13.6.0",
     "pngjs": "7.0.0",
     "postcss": "8.5.29",
     "prisma": "5.22.0",
@@ -105,7 +105,7 @@
     "vitest": "^4.1.12"
   },
   "engines": {
-    "node": ">=22.13.0 <23"
+    "node": ">=22.19.0 <23"
   },
   "allowScripts": {
     "@prisma/client@5.22.0": true,

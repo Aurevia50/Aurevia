@@ -46,6 +46,10 @@ export default function AdminKycReviewPanel(){
 			const response=await fetch('/api/admin/users',{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({userId:user.id,kycStatus,reviewNote:notes[user.id]||''})});
 			const result=await response.json();
 			if(!response.ok)throw new Error(result.error||'Unable to review this profile.');
+			const reviewedAt=new Date().toISOString();
+			const reviewedProfile=(item:ReviewUser):ReviewUser=>item.id===user.id?{...item,kycStatus,kyc:item.kyc?{...item.kyc,reviewedAt,reviewNote:notes[user.id]||null}:item.kyc}:item;
+			setUsers(current=>current.map(reviewedProfile));
+			setAllUsers(current=>current.map(reviewedProfile));
 			setMessage(`Verification status updated for ${user.email}.`);
 			await load();
 		}catch(exception){setError(exception instanceof Error?exception.message:'Unable to review this profile.');}
@@ -67,6 +71,10 @@ export default function AdminKycReviewPanel(){
 		try{
 			const response=await fetch(`/api/admin/kyc/documents/${encodeURIComponent(document.id)}`,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({status,reviewNote:notes[user.id]||''})});
 			const result=await response.json();if(!response.ok)throw new Error(result.error||'Unable to review this document.');
+			const reviewedAt=new Date().toISOString();
+			const updateDocuments=(item:ReviewUser):ReviewUser=>item.id===user.id?{...item,kycDocuments:item.kycDocuments.map(current=>current.id===document.id?{...current,status,reviewedAt,reviewNote:notes[user.id]||null}:current)}:item;
+			setUsers(current=>current.map(updateDocuments));
+			setAllUsers(current=>current.map(updateDocuments));
 			setMessage(`${document.filename} marked ${status.toLowerCase().replaceAll('_',' ')}.`);await load();
 		}catch(exception){setError(exception instanceof Error?exception.message:'Unable to review this document.')}
 		finally{setBusyDocument('')}

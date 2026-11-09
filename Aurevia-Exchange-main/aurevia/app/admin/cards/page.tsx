@@ -18,6 +18,8 @@ export default function AdminCardsPage(){
 	const [message,setMessage]=useState('');
 	const [loading,setLoading]=useState(true);
 	const [busy,setBusy]=useState(false);
+	const pendingApplications=applications.filter(app=>['SUBMITTED','UNDER_REVIEW','AWAITING_INFO'].includes(app.status));
+	const reviewedApplications=applications.filter(app=>!['SUBMITTED','UNDER_REVIEW','AWAITING_INFO'].includes(app.status));
 
 	const load=useCallback(async()=>{
 		setLoading(true);
@@ -49,6 +51,11 @@ export default function AdminCardsPage(){
 			const response=await fetch(`/api/admin/cards/applications/${id}`,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({action,...extra})});
 			const result=await response.json();
 			if(!response.ok)throw new Error(result.error||'Action failed');
+			let nextStatus:CardApplicationStatus|undefined;
+			if(action==='APPROVE')nextStatus='APPROVED';
+			else if(action==='DECLINE')nextStatus='DECLINED';
+			else if(action==='UNDER_REVIEW')nextStatus='UNDER_REVIEW';
+			if(nextStatus){const status=nextStatus;setApplications(current=>current.map(app=>app.id===id?{...app,status}:app))}
 			setMessage(`Action ${action} completed.`);await load();
 		}catch(exception){setError(exception instanceof Error?exception.message:'Action failed')}
 		finally{setBusy(false)}
@@ -79,8 +86,8 @@ export default function AdminCardsPage(){
 						))}</ul>
 					</section>
 					<section className="card p-5 mt-4">
-						<h2 className="font-semibold flex items-center gap-2"><CreditCard size={16}/> Applications</h2>
-						<ul className="mt-3 divide-y divide-white/10">{applications.map(app=>(
+						<h2 className="font-semibold flex items-center gap-2"><CreditCard size={16}/> Applications awaiting review <span className="status-pill">{pendingApplications.length}</span></h2>
+						{pendingApplications.length?<ul className="mt-3 divide-y divide-white/10">{pendingApplications.map(app=>(
 							<li key={app.id} className="py-3">
 								<div className="flex flex-wrap justify-between gap-2 text-sm">
 									<div><b>{app.reference}</b> · {app.user?.email}<p className="text-xs muted">{app.catalogItem?.displayName} · {app.status} · {app.priceSnapshot} {app.currencySnapshot}</p></div>
@@ -98,7 +105,11 @@ export default function AdminCardsPage(){
 									</div>
 								</div>
 							</li>
-						))}</ul>
+						))}</ul>:<p className="mt-3 muted">No card applications are awaiting review.</p>}
+					</section>
+					<section className="card p-5 mt-4">
+						<h2 className="font-semibold">Reviewed application history</h2>
+						{reviewedApplications.length?<ul className="mt-3 divide-y divide-white/10">{reviewedApplications.map(app=><li key={app.id} className="py-3 text-sm"><b>{app.reference}</b> · {app.user?.email} · {app.catalogItem?.displayName} · {app.status}</li>)}</ul>:<p className="mt-3 muted">No reviewed applications yet.</p>}
 					</section>
 					<section className="card p-5 mt-4">
 						<h2 className="font-semibold">Issued cards</h2>
