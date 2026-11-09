@@ -6,6 +6,8 @@ const mocks=vi.hoisted(()=>({
 	internalQuote:vi.fn(),
 	internalHistory:vi.fn(),
 	referenceHistory:vi.fn(),
+	configuredHistory:vi.fn(),
+	configuredQuote:vi.fn(),
 }));
 
 vi.mock('@/lib/live-market',()=>({
@@ -20,6 +22,10 @@ vi.mock('@/lib/internal-market-data',()=>({
 	getInternalMarketHistory:mocks.internalHistory,
 	getReferenceMarketHistory:mocks.referenceHistory,
 }));
+vi.mock('@/lib/market-data/provider-manager',()=>({
+	getConfiguredMarketHistory:mocks.configuredHistory,
+	getConfiguredMarketQuote:mocks.configuredQuote,
+}));
 import {getMarketHistoryWithFallback,getMarketQuoteWithFallback} from '@/lib/market-data-service';
 
 const asset={id:'AAPL',ticker:'AAPL',name:'Apple Inc.',type:'STOCK' as const,currency:'USD'};
@@ -30,6 +36,8 @@ beforeEach(()=>{
 	mocks.internalQuote.mockReset().mockResolvedValue({source:'Aurevia Internal',price:230});
 	mocks.internalHistory.mockReset().mockResolvedValue({source:'Aurevia Internal'});
 	mocks.referenceHistory.mockReset().mockResolvedValue({source:'Aurevia Internal'});
+	mocks.configuredHistory.mockReset().mockResolvedValue(null);
+	mocks.configuredQuote.mockReset().mockResolvedValue(null);
 	vi.spyOn(console,'warn').mockImplementation(()=>undefined);
 });
 afterEach(()=>vi.restoreAllMocks());
@@ -64,6 +72,16 @@ describe('market-data provider boundaries',()=>{
 		await expect(getMarketHistoryWithFallback(asset,'1d','server-key')).rejects.toThrow('provider offline');
 		expect(mocks.internalHistory).not.toHaveBeenCalled();
 		expect(console.warn).toHaveBeenCalledOnce();
+	});
+
+	it('returns primary-provider history without waiting on supplemental providers',async()=>{
+		const history={source:'Finnhub',candles:[{time:1,open:10,high:11,low:9,close:10,volume:1}]};
+		mocks.finnhubHistory.mockResolvedValue(history);
+
+		await expect(getMarketHistoryWithFallback(asset,'1d','server-key',undefined,{
+			twelveDataApiKey:'secondary-key',alphaVantageApiKey:'',fmpApiKey:'',productionLicenseConfirmed:true,
+		})).resolves.toBe(history);
+		expect(mocks.configuredHistory).not.toHaveBeenCalled();
 	});
 
 	it('uses database-independent reference history only when no external provider is configured',async()=>{

@@ -23,6 +23,7 @@ export default function HomeMarketPreview(){
   const [history,setHistory]=useState<{candles:MarketCandle[];interval:string;quote:MarketQuote|null}|null>(null);
   const [historyLoading,setHistoryLoading]=useState(false);
   const [historyError,setHistoryError]=useState('');
+  const [historyRetry,setHistoryRetry]=useState(0);
   const prevPrice=useRef<number|null>(null);
   const current=markets.find(item=>item.id===selected);
   const currentId=current?.id;
@@ -79,7 +80,7 @@ export default function HomeMarketPreview(){
         if(active)setHistoryLoading(false);
       });
     return()=>{active=false};
-  },[currentId,currentQuoteSource,realMode,timeframe]);
+  },[currentId,currentQuoteSource,realMode,timeframe,historyRetry]);
 
   const changePct=current?.change;
   const changeClass=changePct===undefined?'':changePct>=0?'is-up':'is-down';
@@ -112,7 +113,7 @@ export default function HomeMarketPreview(){
       {current&&realMode?
         current.quote.source&&isExternalMarketDataSource(current.quote.source)?
           history?<LivePriceChart candles={history.candles} quote={current.quote} timeframe={timeframe} interval={history.interval} loading={historyLoading} error={historyError}/>
-            :<div className="market-chart-empty" role={historyError?'alert':'status'}>{historyError||'Loading provider market history…'}</div>
+            :<div className="market-chart-empty" role={historyError?'alert':'status'}>{historyError||'Loading provider market history…'}{historyError&&<button type="button" className="button-secondary mt-3" onClick={()=>setHistoryRetry(value=>value+1)} disabled={historyLoading}>Retry history</button>}</div>
           :<div className="market-chart-empty" role="status">A current external market quote is unavailable for REAL mode.</div>
         :current?<PriceChart price={current.price} assetId={current.id}/>
         :<div className="market-chart-empty" role="status">{status==='error'?translate('marketDataUnavailableRightNow'):translate('loading')}</div>}

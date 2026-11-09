@@ -103,6 +103,7 @@ function MarketChartPanel({selectedSymbol,quotes,internalInstrumentId,accountMod
 	const [loading,setLoading]=useState(false);
 	const [error,setError]=useState('');
 	const [timeframe,setTimeframe]=useState<TimeframeId>('1d');
+	const [historyRetry,setHistoryRetry]=useState(0);
 	useEffect(()=>{
 		let active=true;
 		setLoading(true);setError('');
@@ -148,7 +149,7 @@ function MarketChartPanel({selectedSymbol,quotes,internalInstrumentId,accountMod
 		};
 		void load();
 		return()=>{active=false};
-	},[selectedSymbol,timeframe,internalInstrumentId,accountMode]);
+	},[selectedSymbol,timeframe,internalInstrumentId,accountMode,historyRetry]);
 	const quoteValue=quotes.get(selectedSymbol);
 	const quote=isQuote(quoteValue)?quoteValue:history?.quote;
 	return <section className="user-dashboard-panel user-market-chart-panel" aria-labelledby="user-market-overview">
@@ -157,7 +158,7 @@ function MarketChartPanel({selectedSymbol,quotes,internalInstrumentId,accountMod
 			<div className="user-market-quote">{quote?<><strong>{formatMarketPrice(quote.price,quote.asset.currency)}</strong><span className={quote.changePercent>=0?'is-positive':'is-negative'}>{quote.changePercent>=0?'+':''}{quote.changePercent.toFixed(2)}%</span></>:<span className="user-dashboard-muted">Quote unavailable</span>}</div>
 		</header>
 		<div className="user-chart-toolbar"><div className="user-chart-timeframes" role="group" aria-label="Market chart range">{timeframes.map(item=><button key={item.value} type="button" aria-pressed={timeframe===item.value} className={timeframe===item.value?'is-selected':''} onClick={()=>setTimeframe(item.value)}>{item.label}</button>)}</div><Link href={`/markets?symbol=${encodeURIComponent(selectedSymbol)}`} className="user-dashboard-panel-link">Full market view <ExternalLink size={13}/></Link></div>
-		{history?<LivePriceChart candles={history.candles} quote={history.source==='Aurevia DEMO market feed'?undefined:quote??undefined} timeframe={timeframe} interval={history.interval} loading={loading} error={error}/>:loading?<div className="user-chart-empty" role="status">Loading market history…</div>:<div className="user-chart-empty" role="status">{error||'No historical market data is available for this range.'}</div>}
+		{history?<LivePriceChart candles={history.candles} quote={history.source==='Aurevia DEMO market feed'?undefined:quote??undefined} timeframe={timeframe} interval={history.interval} loading={loading} error={error}/>:loading?<div className="user-chart-empty" role="status">Loading market history…</div>:<div className="user-chart-empty" role={error?'alert':'status'}>{error||'No historical market data is available for this range.'}{error&&<button type="button" className="button-secondary mt-3" onClick={()=>setHistoryRetry(value=>value+1)}>Retry history</button>}</div>}
 		<p className="user-dashboard-footnote">Quotes may be delayed. DEMO prices are internal reference values; charts use available historical market data.</p>
 	</section>;
 }

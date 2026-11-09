@@ -49,6 +49,7 @@ export async function getMarketHistoryWithFallback(asset:LiveMarketAsset,timefra
 	}catch(error){
 		existingError=error;
 	}
+	if(existingHistory&&existingHistory.source!=='Aurevia Internal')return existingHistory;
 	if(additionalProviders){
 		try{
 			const providerHistory=await getConfiguredMarketHistory(asset,timeframe,additionalProviders);
@@ -60,7 +61,6 @@ export async function getMarketHistoryWithFallback(asset:LiveMarketAsset,timefra
 			console.warn('[market-history] Additional providers failed.',{symbol:asset.id,errorName:error instanceof Error?error.name:'UnknownError'});
 		}
 	}
-	if(existingHistory&&existingHistory.source!=='Aurevia Internal')return existingHistory;
 	if(existingError){
 		const error=existingError;
 		console.warn('Configured market history providers failed.',{

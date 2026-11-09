@@ -719,6 +719,47 @@ test('authenticated home market uses REAL provider candles and keeps account nav
 	await expect(page.getByRole('navigation',{name:'Primary account navigation'})).toBeVisible();
 });
 
+test('REAL home market can retry unavailable provider history',async({page})=>{
+	await loginAs(page,fixture('USER_EMAIL'),fixture('USER_PASSWORD'));
+	await selectAccountMode(page,'REAL');
+	let historyRequests=0;
+	const quote={
+		asset:{id:'BTC',ticker:'BTC-USD',name:'Bitcoin USD',type:'CRYPTO',currency:'USD'},
+		price:67000,bid:66999,ask:67001,change:420,changePercent:0.63,marketStatus:'OPEN',
+		previousClose:66580,open:66580,volume:1200,dayLow:66000,dayHigh:67500,
+		fiftyTwoWeekLow:42000,fiftyTwoWeekHigh:73000,updatedAt:new Date().toISOString(),
+		isStale:false,sparkline:[],source:'Alpaca Crypto',
+	};
+	await page.route('**/api/live-markets**',async route=>{
+		const url=new URL(route.request().url());
+		if(url.pathname==='/api/live-markets/BTC'){
+			historyRequests++;
+			if(historyRequests===1){
+				await route.fulfill({status:503,json:{error:'Historical market data is temporarily unavailable.'}});
+				return;
+			}
+			await route.fulfill({json:{
+				quote,candles:[
+					{time:1_794_000_000,open:66500,high:66800,low:66400,close:66700,volume:100},
+					{time:1_794_003_600,open:66700,high:67100,low:66600,close:67000,volume:120},
+				],timeframe:'1d',interval:'1h',source:'Alpaca Crypto',
+			}});
+			return;
+		}
+		if(url.pathname==='/api/live-markets'){
+			await route.fulfill({json:{quotes:[quote],marketDataStatus:'LIVE'}});
+			return;
+		}
+		await route.continue();
+	});
+
+	await page.goto('/');
+	await expect(page.locator('.market-chart-empty[role="alert"]')).toContainText('Historical market data is temporarily unavailable.');
+	await page.getByRole('button',{name:'Retry history'}).click();
+	await expect(page.getByRole('img',{name:'Interactive live market candlestick and volume chart'})).toBeVisible();
+	expect(historyRequests).toBe(2);
+});
+
 test('global chat support persists its position and exchanges private admin messages',async({browser,page})=>{
 	await page.setViewportSize({width:390,height:844});
 	await page.goto('/login');

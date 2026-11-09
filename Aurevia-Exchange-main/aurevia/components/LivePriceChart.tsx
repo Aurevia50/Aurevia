@@ -19,6 +19,7 @@ export default function LivePriceChart({candles,quote,timeframe,interval,loading
   const [hovered,setHovered]=useState<MarketCandle|null>(null);
   const [currentCandle,setCurrentCandle]=useState<MarketCandle|null>(null);
   const candlesRef=useRef(candles);
+  const renderedCandles=useRef<MarketCandle[]>([]);
   const quotePrice=quote?.price;
   const activeInterval=interval||TIMEFRAMES.find(item=>item.id===timeframe)?.interval||'1m';
   const candleIntervalSeconds=chartIntervalSeconds(activeInterval);
@@ -66,18 +67,37 @@ export default function LivePriceChart({candles,quote,timeframe,interval,loading
 
   useEffect(()=>{
     if(!candleSeries.current||!volumeSeries.current)return;
-    candlesRef.current=candles;
     if(!candles.length){
       candleSeries.current.setData([]);
       volumeSeries.current.setData([]);
+      candlesRef.current=[];
+      renderedCandles.current=[];
       setCurrentCandle(null);
       hasFit.current=false;
       return;
     }
-    candleSeries.current.setData(candles.map(({time,open,high,low,close})=>({time:time as UTCTimestamp,open,high,low,close})));
     const palette=readChartTheme();
-    volumeSeries.current.setData(candles.flatMap(candle=>candle.volume===null?[]:[{time:candle.time as UTCTimestamp,value:candle.volume,color:candle.close>=candle.open?palette.positiveFill:palette.negativeFill}]));
-    setCurrentCandle(candles[candles.length-1]);
+    const previous=renderedCandles.current;
+    const timeframeChanged=currentTimeframe.current!==timeframe;
+    const firstChanged=candles.findIndex((candle,index)=>!sameCandle(candle,previous[index]));
+    const canApplyIncrementally=!timeframeChanged&&previous.length>0&&candles.length>=previous.length&&firstChanged>=previous.length-1;
+    const historyUnchanged=firstChanged===-1&&candles.length===previous.length;
+    if(!historyUnchanged){
+      if(canApplyIncrementally){
+        for(const candle of candles.slice(firstChanged)){
+          const time=candle.time as UTCTimestamp;
+          candleSeries.current.update({time,open:candle.open,high:candle.high,low:candle.low,close:candle.close});
+          if(candle.volume!==null)volumeSeries.current.update({time,value:candle.volume,color:candle.close>=candle.open?palette.positiveFill:palette.negativeFill});
+        }
+      }else{
+        candleSeries.current.setData(candles.map(({time,open,high,low,close})=>({time:time as UTCTimestamp,open,high,low,close})));
+        volumeSeries.current.setData(candles.flatMap(candle=>candle.volume===null?[]:[{time:candle.time as UTCTimestamp,value:candle.volume,color:candle.close>=candle.open?palette.positiveFill:palette.negativeFill}]));
+      }
+      renderedCandles.current=candles;
+      candlesRef.current=candles;
+      const latest=candles[candles.length-1];
+      setCurrentCandle(current=>current&&sameCandle(current,latest)?current:latest);
+    }
     if(!hasFit.current||currentTimeframe.current!==timeframe){chartRef.current?.timeScale().fitContent();hasFit.current=true;currentTimeframe.current=timeframe;}
   },[candles,timeframe]);
 
@@ -112,3 +132,7 @@ export default function LivePriceChart({candles,quote,timeframe,interval,loading
 }
 
 function formatChartPrice(value:number){return value.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:value<10?5:2});}
+
+function sameCandle(left:MarketCandle|undefined,right:MarketCandle|undefined){
+  return !!left&&!!right&&left.time===right.time&&left.open===right.open&&left.high===right.high&&left.low===right.low&&left.close===right.close&&left.volume===right.volume;
+}
