@@ -47,8 +47,8 @@ export default function DisplayCurrencyPanel({values}:Props){
 	}
 
 	return <section className="account-panel card p-4" aria-label="Display currency">
-		<div className="grid gap-3 sm:grid-cols-[minmax(170px,220px)_1fr] sm:items-start">
-			<label className="account-label">Display currency<select aria-label="Preferred display currency" className="input mt-1 min-h-11" value={currency} disabled={!ready} onChange={event=>void changeCurrency(event.target.value)}>{currencies.map(code=><option key={code}>{code}</option>)}</select></label>
+		<div className="grid gap-3 sm:grid-cols-[auto_1fr] sm:items-start">
+			<label className="display-currency-control">Preferred display currency<select aria-label="Preferred display currency" className="input" value={currency} disabled={!ready} onChange={event=>void changeCurrency(event.target.value)}>{currencies.map(code=><option key={code}>{code}</option>)}</select></label>
 			<div className="text-sm" aria-live="polite">
 				{currency==='USD'
 					?<p>USD ledger values.</p>
