@@ -163,3 +163,76 @@ The `.env` entry is app-local configuration, not a global Codespace or agent env
 - **To make the variable available to future Codespace/agent processes:** use an approved Codespaces secret/environment manager to expose the name `QVERIS_API_KEY` to this repository’s Codespace. First check whether that secret name already exists and has access to `Aurevia50/Aurevia`; the secret list could not be checked here. Do not create a duplicate, replace, rotate, or overwrite an existing secret, and do not copy its value into chat, commands, source, or this report. After a change made by an authorized operator, stop and restart the Codespace, then start a fresh terminal/agent process and verify only whether the variable is present. GitHub’s [Codespaces secrets documentation](https://docs.github.com/en/codespaces/managing-your-codespaces/managing-your-account-specific-secrets-for-github-codespaces) states that secrets are made available when a Codespace is created or restarted.
 
 Authenticated QVeris work remains blocked until the agent has an authorized, safely provisioned credential. Once provisioned, use the official REST docs cited above; Probe is documented as free and non-executing but is not available in public-readonly mode. No Call should be made without explicit cost approval.
+
+## Follow-up: authenticated QVeris discovery and safe Probes (2026-11-09)
+
+### Credential availability and handling
+
+- `gh auth status` confirmed GitHub CLI is authenticated as `Aurevia50`.
+- `gh secret list --app codespaces --repo Aurevia50/Aurevia` confirmed a repository Codespaces secret named `QVERIS_API_KEY` (updated 2026-11-09 08:44 UTC). The secret value was not retrieved.
+- The running agent and its ordinary child process still do not inherit `QVERIS_API_KEY`. The Codespaces secret is configured, but this existing Codespace has not injected it into the current process environment.
+- For this read-only audit only, a short-lived Node child was started with the Aurevia app directory as its working directory and Next’s `loadEnvConfig` loaded the ignored app-root `.env` in memory. Presence was checked without printing the value; the same process then sent documented authenticated QVeris requests using the bearer Authorization header. The key was not copied to the shell, output, source, or report. No secret was added, changed, or overwritten.
+- Official authentication syntax and endpoint definitions were checked against the current QVeris REST docs and the official OpenAPI document. Authenticated Discover and Inspect returned HTTP 200.
+
+### Authenticated Discover and Inspect
+
+Seven focused Discover searches were made for stock quotes, crypto prices, OHLCV candles, intraday bars, technical indicators, market depth/order books, and streaming/WebSocket data. Each returned 10 ranked catalog records. After deduplication and filtering for relevant market-data tools, **22 distinct candidates were inspected**.
+
+Authenticated Inspect returned richer evidence than public-readonly Inspect:
+
+- The 22 candidate records included Finnhub, EODHD, Alpha Vantage, Twelve Data, CoinGecko Pro, Binance, Financial Modeling Prep, and Bybit P2P.
+- Relevant returned candidates included Finnhub stock quote, EODHD delayed US quotes and intraday history, Alpha Vantage global quote and RSI/SMA/EMA/ATR, Twelve Data quote, CoinGecko Pro token price/history/chart, Binance average price/order-book ticker, and Bybit P2P order book.
+- Most were still `unverified`; four FMP history tools (4-hour, 30-minute, 15-minute, and 1-hour) were `failed` and explicitly had `execute` in `blocked_actions`. They were not probed.
+- All inspected candidates remained missing one or more important verification checks. For the probed candidates, authentication method, provider permissions/identity, commercial rights, geographic eligibility (including Nigeria), data freshness, and live-check evidence remained unknown or missing. No candidate produced a provider quote, candle series, indicator values, or market-depth snapshot.
+- Authenticated Inspect returned exact per-execution prices for the selected examples: Finnhub Quote 1 credit/call, Binance Average Price 1 credit/call, Alpha Vantage RSI 1 credit/call, and EODHD Intraday 2.81 credits/call. A Twelve Data quote listed 2.37 credits/call. The failed FMP history entries listed 24.2 credits/call but were blocked from Execute. These are QVeris catalog estimates/quotes for a future Execute, **not charges incurred**; no Execute was made.
+- The exact schemas expose some interval support (e.g. EODHD intraday 1m/5m/1h/1d; Alpha Vantage RSI 1/5/15/30/60 minutes plus daily/weekly/monthly). Schema presence and Probe validation do not establish history coverage, operational data, entitlement, or commercial suitability.
+
+### Safe Probe policy and results
+
+The official REST documentation states Probe is free, validates parameters, and returns a pre-call quote without executing the selected capability. The official OpenAPI further defines `live_budget` values and states that M1 is zero-cost and every value avoids an upstream tool execution. Each request below used the authenticated Probe endpoint with `checks: ["schema", "quote"]` and `live_budget: "none"`. No provider Execute/Call or other upstream data operation was made.
+
+| Candidate | Probe input purpose | Schema result | Pre-call Execute quote |
+|---|---|---|---|
+| Finnhub `finnhub_io_api.stock.quote` | Stock quote parameters for AAPL | Valid | Exact: 1 credit/call |
+| Binance `binance.avg_price.retrieve.v1.aef0de4f` | Crypto average-price parameters for BTCUSDT | Valid | Exact: 1 credit/call |
+| EODHD `eodhd.intraday.retrieve.v1.82292199` | 5-minute AAPL intraday interval | Initial date-string attempt invalid: Inspect declared Unix-integer timestamps; corrected timestamp attempt valid | Exact: 2.81 credits/call |
+| Alpha Vantage `alphavantage.technical-indicators.rsi.v1` | RSI schema for AAPL, daily interval, period 14 | Valid | Exact: 1 credit/call |
+
+Thus, **four distinct candidates passed schema Probe validation**. There were five Probe requests total: four valid responses and one safe schema rejection, followed by the corrected EODHD Probe. Each Probe response continued to mark the tool `unverified`, and its execution restrictions still reported unknown permissions, license, commercial use, region, and freshness. A valid schema Probe is not evidence that the actual provider operation will succeed.
+
+### Updated conclusion
+
+Authentication worked for Discover, Inspect, and Probe by loading the existing ignored app `.env` into a short-lived app-root process. The Codespaces secret is configured by name but is not available to the already-running agent; a Codespace restart and new process would be needed for future inherited availability. The authenticated evidence provides useful exact Execute price quotes and confirms several schemas, but does not close the verification, licensing, regional, freshness, or data-operation gaps. Continue to **reject production adoption for now**; at most perform a separately approved, non-production evaluation. Do not execute paid calls, change application/provider configuration, or infer brokerage capability from these results.
+
+### Verification and safety
+
+- Authenticated Discover/Inspect: **YES**, HTTP 200.
+- Distinct authenticated candidates inspected: **22**.
+- Schema Probe results: **4 distinct candidates passed; 1 initial EODHD parameter attempt failed validation and its corrected retry passed**.
+- Paid Call/Execute or subscription: **NO**.
+- Production, application, database, wallet/ledger, user-account, or secret changes: **NO**.
+
+## Follow-up: chart/candle verification without Execute (2026-11-09)
+
+### QVeris candle Probe outcome
+
+Repeated the EODHD 5-minute candle Probe using `checks: ["schema", "quote", "coverage", "sample"]` and `live_budget: "none"`. The official OpenAPI contract says this budget is zero-cost and avoids upstream tool execution. The response was HTTP 200 and reported:
+
+- Input schema: `valid: true`.
+- Pre-call Execute quote: exact **2.81 credits/call**; this is a quote only, not a charge.
+- Coverage: `verdict: "unknown"`, reason `not_yet_implemented`.
+- Sample: `verdict: "unknown"`, reason `not_yet_implemented`.
+- Tool verification remained `unverified`; provider access, data freshness, licensing, regional eligibility, and live operation remain unconfirmed.
+
+Therefore the Probe did **not** return candles. Without an Execute/data operation, there is no QVeris candle payload that can be supplied to the chart, so it is not possible to verify that a QVeris candle actually appears visually. No Execute was made.
+
+### Existing Aurevia chart-path verification
+
+- Source inspection confirms there is no QVeris adapter or QVeris route in the Aurevia application source. The trade page passes history returned by the existing `/api/live-markets/[symbol]` route to the chart component. That route uses the existing Alpaca/Finnhub/internal and configured provider fallback paths; it is not connected to QVeris.
+- [`LivePriceChart`](../../Aurevia-Exchange-main/aurevia/components/LivePriceChart.tsx) creates a `CandlestickSeries`, calls `setData` with non-empty candle history, updates the current candle incrementally, and renders OHLC readout values. [`PriceChart`](../../Aurevia-Exchange-main/aurevia/components/PriceChart.tsx) also creates a candlestick series and maps returned OHLC data to the chart.
+- Ran `npm test -- --run tests/chart-candles.test.ts tests/live-market-history-route.test.ts` from the application root: **2 test files passed, 8 tests passed**. These verify candle interval/update behavior and history-route error behavior. They do not retrieve QVeris data or prove an actual browser-rendered candle.
+- An existing Playwright test asserts that the trade-page chart image is visible, but that broader scenario also submits DEMO orders and requires the isolated E2E database/server. It was not run because this verification was limited to chart rendering without trading/order execution.
+
+### Conclusion
+
+The existing chart implementation is wired to render normalized candles, and its focused unit tests pass. **QVeris candle display is not verified and is not currently integrated**: its non-executing Probe returns no sample or coverage evidence, and no provider data Execute was permitted. No changes were made to application code or production. The only repository change in this follow-up is this audit-report update.
