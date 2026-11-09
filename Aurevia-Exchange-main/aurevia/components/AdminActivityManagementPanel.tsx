@@ -1,7 +1,7 @@
 'use client';
 
 import {useCallback,useEffect,useMemo,useState} from 'react';
-import {Archive,RefreshCw,RotateCcw,Search,ShieldAlert,Trash2} from 'lucide-react';
+import {Archive,ArrowLeft,ArrowRight,RefreshCw,RotateCcw,Search,ShieldAlert,Trash2} from 'lucide-react';
 import type {ActivityCategory,ActivityRecord} from '@/lib/activity';
 import {groupByLocalDate,localDateBoundary} from '@/lib/local-date';
 
@@ -26,6 +26,8 @@ export default function AdminActivityManagementPanel(){
 	const [busy,setBusy]=useState(false);
 	const [error,setError]=useState('');
 	const [notice,setNotice]=useState('');
+	const [offset,setOffset]=useState(0);
+	const [recordsVisible,setRecordsVisible]=useState(false);
 
 	const searchUsers=useCallback(async(value:string)=>{
 		if(value.trim().length<2){setUsers([]);return}
@@ -39,11 +41,11 @@ export default function AdminActivityManagementPanel(){
 
 	useEffect(()=>{const timer=window.setTimeout(()=>void searchUsers(search),250);return()=>window.clearTimeout(timer)},[search,searchUsers]);
 
-	const load=useCallback(async(offset=0,append=false)=>{
+	const load=useCallback(async(requestedOffset=0)=>{
 		if(!target)return;
 		setLoading(true);setError('');
 		try{
-			const params=new URLSearchParams({userId:target.id,accountMode:mode,category,limit:'30',offset:String(offset),state});
+			const params=new URLSearchParams({userId:target.id,accountMode:mode,category,limit:'5',offset:String(requestedOffset),state});
 			if(activitySearch.trim())params.set('search',activitySearch.trim());
 			if(statusFilter)params.set('status',statusFilter);
 			if(dateFrom){const boundary=localDateBoundary(dateFrom);if(boundary)params.set('dateFrom',boundary)}
@@ -51,13 +53,13 @@ export default function AdminActivityManagementPanel(){
 			const response=await fetch(`/api/admin/activity?${params.toString()}`,{cache:'no-store'});
 			const result=await response.json();
 			if(!response.ok)throw new Error(result.error||'Unable to load activity records.');
-			setData(current=>append&&current?{...result.data,items:[...current.items,...result.data.items]}:result.data);
+			setData(result.data);
 			setSelected(new Set());setNotice('');
 		}catch(exception){setError(exception instanceof Error?exception.message:'Unable to load activity records.')}
 		finally{setLoading(false)}
 	},[activitySearch,category,dateFrom,dateTo,mode,state,statusFilter,target]);
 
-	useEffect(()=>{setData(null);if(target)void load()},[load,target]);
+	useEffect(()=>{setData(null);setOffset(0);if(target)void load(0)},[load,target]);
 
 	const selectedItems=useMemo(()=>data?.items.filter(item=>selected.has(`${item.source}:${item.id}`))||[],[data,selected]);
 	const groupedActivity=groupByLocalDate(data?.items||[]);
@@ -123,14 +125,14 @@ export default function AdminActivityManagementPanel(){
 		</section>
 		{error&&<p className="account-callout mt-4" role="alert">{error}</p>}{notice&&<p className="mt-3 text-sm text-profit" role="status">{notice}</p>}
 		<section className="account-panel card mt-4 overflow-hidden">
-			<div className="account-panel-title px-4 pt-4"><div><h2>{target?`${mode} activity records`:'Select a user account'}</h2><p className="account-panel-subtitle">{data?`${data.items.length} records loaded · ${data.total} matches in current page window`:'Activity details are loaded only after an administrator selects an account.'}</p></div></div>
-			{loading?<div className="account-empty" role="status">Loading activity records…</div>:data?.items.length?<div className="activity-feed">{groupedActivity.map(group=><div key={group.key}><h3 className="px-4 py-2 text-xs font-semibold muted">{group.label}</h3>{group.items.map(item=><article className="activity-feed-row activity-managed-row" key={`${item.source}:${item.id}`}>
+			<div className="account-panel-title px-4 pt-4"><div><h2>{target?`${mode} activity records`:'Select a user account'}</h2><p className="account-panel-subtitle">{data?`${data.total} matching records`:'Select an account to review its activity.'}</p></div>{target&&<button type="button" className="button-secondary" aria-expanded={recordsVisible} onClick={()=>setRecordsVisible(value=>!value)}>{recordsVisible?'Hide records':'View records'}</button>}</div>
+			{recordsVisible&&<>{loading?<div className="account-empty" role="status">Loading activity…</div>:data?.items.length?<div className="activity-feed">{groupedActivity.map(group=><div key={group.key}><h3 className="px-4 py-2 text-xs font-semibold muted">{group.label}</h3>{group.items.map(item=><article className="activity-feed-row activity-managed-row" key={`${item.source}:${item.id}`}>
 				<label><input type="checkbox" checked={selected.has(`${item.source}:${item.id}`)} onChange={()=>toggle(item)} disabled={item.source==='audit'} aria-label={`Select ${item.action}`}/></label>
 				<div className="activity-feed-main"><div><b>{item.action}</b><span>{item.asset}</span>{item.archivedAt&&<small>ARCHIVED</small>}{item.hidden&&<small>REMOVED FROM FEED</small>}{item.permanentDeletionAllowed&&<small>ELIGIBLE FOR PERMANENT DELETION</small>}</div><p>{item.sourceLabel} · {item.status} · {new Date(item.timestamp).toLocaleString()}</p><details><summary>Record and retention details</summary><dl><div><dt>Source ID</dt><dd>{item.id}</dd></div><div><dt>Record type</dt><dd>{item.source}</dd></div><div><dt>Account mode</dt><dd>{mode}</dd></div><div><dt>Retention</dt><dd>{item.protectionReason||'Financial/business source record retained.'}</dd></div></dl></details></div>
 				<span className={`status-pill ${item.permanentDeletionAllowed?'':'mode-real'}`}>{item.permanentDeletionAllowed?'Eligible':'Protected'}</span>
 				{item.source!=='audit'&&<button type="button" className="icon-action" disabled={busy} onClick={()=>void act(item.hidden||item.archivedAt?'restore':'hide',[item],true)} aria-label={item.hidden||item.archivedAt?`Restore ${item.action}`:`Remove ${item.action} from feed`} title={item.hidden||item.archivedAt?'Restore activity':'Remove from feed'}>{item.hidden||item.archivedAt?<RotateCcw size={15}/>:<Trash2 size={15}/>}</button>}
-			</article>)}</div>)}</div>:<div className="account-empty">{target?'No activity matches the selected filters.':'Search for and select a user to review activity.'}</div>}
-			{data?.hasMore&&<div className="activity-pagination"><button type="button" className="button-secondary" onClick={()=>void load(data.items.length,true)} disabled={loading}>Load more</button></div>}
+			</article>)}</div>)}</div>:<div className="account-empty">No activity matches the selected filters.</div>}
+			{data&&<div className="activity-pagination"><span>Page {Math.floor(offset/5)+1} · {data.total} records</span><div className="flex gap-2"><button type="button" className="button-secondary" onClick={()=>{const next=Math.max(0,offset-5);setOffset(next);void load(next)}} disabled={loading||offset===0}><ArrowLeft size={13}/>Previous</button><button type="button" className="button-secondary" onClick={()=>{const next=offset+5;setOffset(next);void load(next)}} disabled={loading||!data.hasMore}><ArrowRight size={13}/>Next</button></div></div>}</>}
 		</section>
 	</div>;
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import {FormEvent,useCallback,useEffect,useState} from 'react';
-import {Eye, Pencil,RefreshCw,Search,Trash2} from 'lucide-react';
+import {ChevronLeft,ChevronRight,Eye, Pencil,RefreshCw,Search,Trash2} from 'lucide-react';
 import {SUPPORTED_CURRENCIES} from '@/lib/config/simulation';
 import ReceiptGenerator,{type ReceiptData} from '@/components/ReceiptGenerator';
 import AureviaExchangeId from '@/components/AureviaExchangeId';
@@ -18,24 +18,25 @@ function AdminLoginHistory({userId}:{userId:string}){
 	const [events,setEvents]=useState<AdminLoginEvent[]|null>(null);
 	const [loading,setLoading]=useState(false);
 	const [error,setError]=useState('');
-	async function load(){
+	const [page,setPage]=useState(1);
+	const [totalPages,setTotalPages]=useState(0);
+	async function load(requestedPage=page){
 		setLoading(true);setError('');
 		try{
-			const response=await fetch(`/api/admin/audit?loginUserId=${encodeURIComponent(userId)}`,{cache:'no-store'});
+			const response=await fetch(`/api/admin/audit?loginUserId=${encodeURIComponent(userId)}&page=${requestedPage}`,{cache:'no-store'});
 			const result=await response.json();
 			if(!response.ok)throw new Error(result.error||'Unable to load login history.');
-			setEvents(result as AdminLoginEvent[]);
+			setEvents(result.items as AdminLoginEvent[]);setPage(result.page);setTotalPages(result.totalPages);
 		}catch(exception){setError(exception instanceof Error?exception.message:'Unable to load login history.')}
 		finally{setLoading(false)}
 	}
 	return <section className="mt-4 border-t border-white/10 pt-4">
-		<div className="account-panel-title"><div><h3>Login history</h3><p className="account-panel-subtitle">Login and logout records with device and network details.</p></div><button className="btn min-h-10 bg-white/5" type="button" onClick={()=>void load()} disabled={loading}>{loading?'Loading…':events?'Refresh history':'View history'}</button></div>
-		<p className="mt-2 text-xs muted">IP addresses are approximate. No verified location provider is configured; an IP does not establish a person’s location.</p>
+		<div className="account-panel-title"><div><h3>Login history</h3><p className="account-panel-subtitle">Sign-in events and device details.</p></div><button className="btn min-h-10 bg-white/5" type="button" onClick={()=>void load()} disabled={loading}>{loading?'Loading…':events?'Refresh':'View history'}</button></div>
 		{error&&<p className="mt-2 text-sm text-loss" role="alert">{error}</p>}
 		{events&&<div className="mt-3 grid gap-2">{events.length?events.map(event=><article className="rounded border border-white/10 p-3" key={event.id}>
 			<div className="flex flex-wrap items-center justify-between gap-2"><b>{event.action==='LOGIN_SUCCESS'?'Successful sign-in':event.action==='LOGIN_FAILED'?'Failed sign-in':event.action==='LOGOUT_SUCCESS'?'Signed out':event.action}</b><time className="text-xs muted" dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleString()}</time></div>
 			<dl className="mt-2 grid gap-2 text-xs sm:grid-cols-2"><div><dt className="muted">IP address</dt><dd className="break-all">{event.metadata?.clientIp||'Unavailable'}</dd></div><div><dt className="muted">Approximate location</dt><dd>Unavailable</dd></div><div className="sm:col-span-2"><dt className="muted">Device / browser</dt><dd className="break-words">{event.metadata?.userAgent||'Unavailable'}</dd></div>{event.metadata?.reason&&<div><dt className="muted">Result detail</dt><dd>{event.metadata.reason}</dd></div>}</dl>
-		</article>):<p className="text-sm muted">No login records are available for this account.</p>}</div>}
+		</article>):<p className="text-sm muted">No login records.</p>}<div className="mt-3 flex items-center justify-between"><span className="text-xs muted">Page {page} of {totalPages}</span><div className="flex gap-2"><button type="button" className="btn min-h-9 bg-white/5" disabled={loading||page<=1} onClick={()=>void load(page-1)}><ChevronLeft size={14}/>Previous</button><button type="button" className="btn min-h-9 bg-white/5" disabled={loading||page>=totalPages} onClick={()=>void load(page+1)}>Next<ChevronRight size={14}/></button></div></div></div>}
 	</section>;
 }
 

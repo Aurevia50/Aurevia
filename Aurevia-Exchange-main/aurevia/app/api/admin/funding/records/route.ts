@@ -12,7 +12,7 @@ const querySchema=z.object({
 	page:z.coerce.number().int().min(1).default(1),
 	sort:z.enum(['asc','desc']).default('desc'),
 });
-const pageSize=25;
+const pageSize=5;
 
 export async function GET(request:Request){
 	try{

@@ -539,6 +539,8 @@ test('password reset consumes a database token and changes the account password'
 	await page.getByRole('button',{name:'Sign in'}).click();
 	await page.waitForURL(url=>url.pathname==='/wallet/transactions'&&url.searchParams.get('tab')==='history');
 	await expect(page.getByRole('heading',{name:/Transaction history/i})).toBeVisible();
+	await page.getByRole('button',{name:'View history'}).click();
+	await expect(page.getByRole('heading',{name:'Funding requests'})).toBeVisible();
 });
 
 test('dashboard hierarchy remains usable and contained at mobile and desktop widths',async({page})=>{
@@ -2930,6 +2932,7 @@ test('approved internal deposit receipts show gross amount, deducted fee, net cr
 		expect(transaction).toMatchObject({status:'APPROVED',amount:'100',creditedAmount:'90',feeAmount:'10',reviewedBy:{email:fixture('ADMIN_EMAIL')}});
 		expect(transaction.reviewedAt).toBeTruthy();
 		await page.goto('/wallet/transactions');
+		await page.getByRole('button',{name:'View history'}).click();
 		const transactionRow=page.locator('.transaction-history-row').filter({hasText:request.id});
 		await expect(transactionRow).toContainText('Approved');
 		await expect(transactionRow).not.toContainText('Pending');

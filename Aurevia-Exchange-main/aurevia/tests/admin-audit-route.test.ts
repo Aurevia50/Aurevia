@@ -3,6 +3,7 @@ import {beforeEach,describe,expect,it,vi} from 'vitest';
 const mocks=vi.hoisted(()=>({
 	requireAdmin:vi.fn(),
 	auditFindMany:vi.fn(),
+	auditCount:vi.fn(),
 	auditCreate:vi.fn(),
 	transaction:vi.fn(),
 	queryRaw:vi.fn(),
@@ -11,7 +12,7 @@ const mocks=vi.hoisted(()=>({
 
 vi.mock('@/lib/auth',()=>({requireAdmin:mocks.requireAdmin}));
 vi.mock('@/lib/db',()=>({db:{
-	auditLog:{findMany:mocks.auditFindMany,create:mocks.auditCreate},
+	auditLog:{findMany:mocks.auditFindMany,count:mocks.auditCount,create:mocks.auditCreate},
 	$queryRaw:mocks.queryRaw,
 	$transaction:mocks.transaction,
 	user:{findMany:mocks.userFindMany},
@@ -26,8 +27,9 @@ describe('admin audit log pagination',()=>{
 		vi.clearAllMocks();
 		mocks.requireAdmin.mockResolvedValue({id:'admin-1'});
 		mocks.auditFindMany.mockResolvedValue([]);
+		mocks.auditCount.mockResolvedValue(0);
 		mocks.auditCreate.mockResolvedValue({});
-		mocks.transaction.mockImplementation(async callback=>callback({auditLog:{findMany:mocks.auditFindMany,create:mocks.auditCreate}}));
+		mocks.transaction.mockImplementation(async callback=>callback({auditLog:{findMany:mocks.auditFindMany,count:mocks.auditCount,create:mocks.auditCreate}}));
 		mocks.queryRaw.mockImplementation(query=>query.sql.includes('COUNT(*)')?[{total:0n}]:[]);
 		mocks.userFindMany.mockResolvedValue([]);
 	});
@@ -37,14 +39,15 @@ describe('admin audit log pagination',()=>{
 
 		expect(response.status).toBe(200);
 		expect(mocks.auditFindMany).toHaveBeenCalledWith(expect.objectContaining({where:{entity:'LOGIN',actorId:'user-1'},orderBy:[{createdAt:'desc'},{id:'desc'}]}));
-		expect(mocks.auditCreate).toHaveBeenCalledWith({data:{actorId:'admin-1',action:'ADMIN_LOGIN_HISTORY_VIEWED',entity:'LOGIN_HISTORY',entityId:'user-1',metadata:{recordCount:0}}});
+		expect(mocks.auditCreate).toHaveBeenCalledWith({data:{actorId:'admin-1',action:'ADMIN_LOGIN_HISTORY_VIEWED',entity:'LOGIN_HISTORY',entityId:'user-1',metadata:{recordCount:0,page:1}}});
+		expect(await response.json()).toMatchObject({items:[],total:0,page:1,pageSize:5,totalPages:0});
 	});
 
 	it('uses database pagination and returns exact result metadata',async()=>{
-		const pageRows=Array.from({length:10},(_,index)=>({
+		const pageRows=Array.from({length:5},(_,index)=>({
 			source:'audit',
-			sourceId:`event-${index+11}`,
-			sortId:`event-${index+11}`,
+			sourceId:`event-${index+6}`,
+			sortId:`event-${index+6}`,
 			actorId:'user-1',
 			action:'USER_UPDATED',
 			entity:'USER',
@@ -62,12 +65,12 @@ describe('admin audit log pagination',()=>{
 		const result=await response.json();
 
 		expect(response.status).toBe(200);
-		expect(result).toMatchObject({total:21,page:2,pageSize:10,totalPages:3});
-		expect(result.items[0]).toMatchObject({id:'event-11',actorName:'Administrator'});
-		expect(result.items).toHaveLength(10);
+		expect(result).toMatchObject({total:21,page:2,pageSize:5,totalPages:5});
+		expect(result.items[0]).toMatchObject({id:'event-6',actorName:'Administrator'});
+		expect(result.items).toHaveLength(5);
 		expect(mocks.queryRaw).toHaveBeenCalledTimes(2);
 		expect(mocks.queryRaw.mock.calls[1][0].sql).toContain('LIMIT ? OFFSET ?');
-		expect(mocks.queryRaw.mock.calls[1][0].values).toEqual([10,10]);
+		expect(mocks.queryRaw.mock.calls[1][0].values).toEqual([5,5]);
 		expect(mocks.queryRaw.mock.calls[1][0].sql).toContain('"AuditLog"');
 		expect(mocks.queryRaw.mock.calls[1][0].sql).toContain('"Notification"');
 		expect(mocks.queryRaw.mock.calls[1][0].sql).toContain('ORDER BY "createdAt" DESC,"sortId" DESC');
@@ -78,13 +81,13 @@ describe('admin audit log pagination',()=>{
 			?[{total:21n}]
 			:[{source:'audit',sourceId:'event-21',sortId:'event-21',actorId:null,action:'FINAL_EVENT',entity:'USER',entityId:'user-21',metadata:null,summary:null,createdAt:new Date('2026-11-05T10:00:00Z')}]);
 
-		const response=await GET(new Request('https://aurevia.test/api/admin/audit?page=3'));
+		const response=await GET(new Request('https://aurevia.test/api/admin/audit?page=5'));
 		const result=await response.json();
 
 		expect(response.status).toBe(200);
-		expect(result).toMatchObject({total:21,page:3,pageSize:10,totalPages:3,items:[{id:'event-21'}]});
+		expect(result).toMatchObject({total:21,page:5,pageSize:5,totalPages:5,items:[{id:'event-21'}]});
 		expect(result.items).toHaveLength(1);
-		expect(mocks.queryRaw.mock.calls[1][0].values).toEqual([10,20]);
+		expect(mocks.queryRaw.mock.calls[1][0].values).toEqual([5,20]);
 	});
 
 	it('filters both feed sources by the selected UTC day in the database',async()=>{

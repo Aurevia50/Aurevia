@@ -49,8 +49,10 @@ export default function AdminAuditLogPanel(){
 	const [loading,setLoading]=useState(true);
 	const [error,setError]=useState('');
 	const [refresh,setRefresh]=useState(0);
+	const [visible,setVisible]=useState(false);
 
 	useEffect(()=>{
+		if(!visible){setLoading(false);return}
 		const controller=new AbortController();
 		const params=new URLSearchParams({page:String(page),search});
 		if(selectedDate)params.set('date',selectedDate);
@@ -72,7 +74,7 @@ export default function AdminAuditLogPanel(){
 			if(!controller.signal.aborted)setLoading(false);
 		});
 		return()=>controller.abort();
-	},[page,search,selectedDate,refresh]);
+	},[page,search,selectedDate,refresh,visible]);
 
 	const today=new Date();
 	const changeDate=(date:string|null)=>{setSelectedDate(date);setPage(1)};
@@ -83,12 +85,13 @@ export default function AdminAuditLogPanel(){
 	};
 	const firstPage=Math.max(1,Math.min(page-Math.floor(pageWindow/2),Math.max(1,totalPages-pageWindow+1)));
 	const pageNumbers=Array.from({length:Math.min(pageWindow,totalPages)},(_,index)=>firstPage+index);
-	const firstRecord=total?(page-1)*10+1:0;
-	const lastRecord=Math.min(page*10,total);
+	const firstRecord=total?(page-1)*5+1:0;
+	const lastRecord=Math.min(page*5,total);
 
 	return <div className="account-page">
-		<header className="account-heading"><div><span className="account-kicker">SERVICE &amp; SYSTEM</span><h1>Administrative audit log</h1><p>Persisted administrator actions and internal notification events.</p></div><button type="button" className="icon-action" aria-label="Refresh audit log" onClick={()=>setRefresh(value=>value+1)}><RefreshCw size={15}/></button></header>
+		<header className="account-heading"><div><span className="account-kicker">SERVICE &amp; SYSTEM</span><h1>Administrative audit log</h1><p>Administrator actions and system notifications.</p></div><div className="flex items-center gap-2"><button type="button" className="btn min-h-10 bg-white/5" aria-expanded={visible} onClick={()=>setVisible(value=>!value)}>{visible?'Hide log':'View log'}</button>{visible&&<button type="button" className="icon-action" aria-label="Refresh audit log" onClick={()=>setRefresh(value=>value+1)}><RefreshCw size={15}/></button>}</div></header>
 
+		{visible&&<>
 		<section className="mb-4 rounded-md border border-white/10 bg-white/[0.025] p-3 sm:p-4" aria-label="Activity date filter">
 			<div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
 				<div className="min-w-0">
@@ -136,5 +139,6 @@ export default function AdminAuditLogPanel(){
 				<button type="button" className="btn min-h-10 bg-white/5" disabled={!totalPages||page>=totalPages||loading} onClick={()=>setPage(value=>Math.min(totalPages,value+1))}>Next<ChevronRight size={15}/></button>
 			</nav>
 		</div>
+		</>}
 	</div>;
 }

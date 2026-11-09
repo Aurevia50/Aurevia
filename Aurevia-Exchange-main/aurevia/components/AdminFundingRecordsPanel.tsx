@@ -19,8 +19,10 @@ export default function AdminFundingRecordsPanel({title,description,type,initial
 	const [loading,setLoading]=useState(true);
 	const [error,setError]=useState('');
 	const [refresh,setRefresh]=useState(0);
+	const [visible,setVisible]=useState(false);
 
 	useEffect(()=>{
+		if(!visible){setLoading(false);return}
 		const controller=new AbortController();
 		const timer=window.setTimeout(async()=>{
 			setLoading(true);setError('');
@@ -35,7 +37,7 @@ export default function AdminFundingRecordsPanel({title,description,type,initial
 			finally{if(!controller.signal.aborted)setLoading(false)}
 		},180);
 		return()=>{window.clearTimeout(timer);controller.abort()};
-	},[page,refresh,search,sort,status,type]);
+	},[page,refresh,search,sort,status,type,visible]);
 
 	async function openReceipt(id:string){
 		try{
@@ -55,7 +57,8 @@ export default function AdminFundingRecordsPanel({title,description,type,initial
 	}
 
 	return <div className="account-page">
-		<header className="account-heading"><div><span className="account-kicker">WORKSPACE · FUNDING RECORDS</span><h1>{title}</h1><p>{description}</p></div><button className="icon-action" type="button" aria-label="Refresh records" onClick={()=>setRefresh(value=>value+1)}><RefreshCw size={15}/></button></header>
+		<header className="account-heading"><div><span className="account-kicker">WORKSPACE · FUNDING RECORDS</span><h1>{title}</h1><p>{description}</p></div><div className="flex items-center gap-2"><button type="button" className="btn min-h-10 bg-white/5" aria-expanded={visible} onClick={()=>setVisible(value=>!value)}>{visible?'Hide records':'View records'}</button>{visible&&<button className="icon-action" type="button" aria-label="Refresh records" onClick={()=>setRefresh(value=>value+1)}><RefreshCw size={15}/></button>}</div></header>
+		{visible&&<>
 		<div className="mb-4 grid gap-3 sm:grid-cols-[minmax(14rem,1fr)_minmax(12rem,0.5fr)_auto]">
 			<label className="account-label">Search<input className="input mt-1" value={search} onChange={event=>{setPage(1);setSearch(event.target.value)}} placeholder="Name, email, request ID, reference" maxLength={120}/></label>
 			<label className="account-label">Status<select className="input mt-1" value={status} onChange={event=>{setPage(1);setStatus(event.target.value)}}><option value="">All statuses</option>{statuses.map(value=><option value={value} key={value}>{value.replaceAll('_',' ')}</option>)}</select></label>
@@ -79,5 +82,6 @@ export default function AdminFundingRecordsPanel({title,description,type,initial
 			</tbody></table>
 		</div>
 		<div className="mt-3 flex items-center justify-between gap-3"><span className="text-xs muted">Page {result.totalPages?result.page:0} of {result.totalPages}</span><div className="flex gap-2"><button type="button" className="btn min-h-10 bg-white/5" disabled={loading||page<=1} onClick={()=>setPage(value=>Math.max(1,value-1))}>Previous</button><button type="button" className="btn min-h-10 bg-white/5" disabled={loading||page>=result.totalPages} onClick={()=>setPage(value=>Math.min(result.totalPages,value+1))}>Next</button></div></div>
+		</>}
 	</div>;
 }

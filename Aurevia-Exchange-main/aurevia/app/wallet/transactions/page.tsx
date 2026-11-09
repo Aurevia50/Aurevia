@@ -22,9 +22,10 @@ export default function TransactionsPage(){
 	const [filter,setFilter]=useState<Filter>('ALL');
 	const [loading,setLoading]=useState(true);
 	const [error,setError]=useState('');
-	const [historyHidden,setHistoryHidden]=useState(false);
+	const [historyHidden,setHistoryHidden]=useState(true);
 	const [historyPreferenceReady,setHistoryPreferenceReady]=useState(false);
 	const [preferenceError,setPreferenceError]=useState('');
+	const [page,setPage]=useState(1);
 	const latestRequest=useRef(0);
 	const preferenceKey=session?.user?.id&&activeMode?`aurevia:funding-history:hidden:${session.user.id}:${activeMode}`:null;
 
@@ -51,7 +52,7 @@ export default function TransactionsPage(){
 		setPreferenceError('');
 		if(sessionStatus==='loading')return;
 		if(sessionStatus!=='authenticated'||!preferenceKey){setHistoryPreferenceReady(true);return}
-		try{setHistoryHidden(window.localStorage.getItem(preferenceKey)==='true')}
+		try{setHistoryHidden(window.localStorage.getItem(preferenceKey)!=='false')}
 		catch{setPreferenceError('History visibility could not be loaded from this browser.')}
 		finally{setHistoryPreferenceReady(true)}
 	},[preferenceKey,sessionStatus]);
@@ -61,6 +62,8 @@ export default function TransactionsPage(){
 		catch{setPreferenceError('History visibility could not be saved in this browser.')}
 	};
 	const transactions=data?.transactions.filter(item=>filter==='ALL'||item.type===filter)||[];
+	const pageCount=Math.ceil(transactions.length/5);
+	const visibleTransactions=transactions.slice((page-1)*5,page*5);
 	const displayValues=transactions.filter(item=>item.currency.toUpperCase()==='USD').slice(0,5).map(item=>({label:`${item.type==='DEPOSIT'?'Deposit':'Withdrawal'} · ${item.method}`,amount:String(item.amount)}));
 	const allTransactions=data?.transactions||[];
 	const pendingCount=allTransactions.filter(item=>['PENDING','PENDING_REVIEW','PROCESSING'].includes(item.status)).length;
@@ -70,7 +73,7 @@ export default function TransactionsPage(){
 		<Link href="/dashboard" className="text-link"><ArrowLeft size={15}/> Back to account</Link>
 		<header className="account-heading wallet-transactions-heading mt-5"><div><span className="account-kicker">{data?.accountMode||'ACCOUNT'} · WALLET</span><h1>Transaction history</h1><p>A clear record of wallet funding requests and the latest status recorded for your active account.</p></div><div className="wallet-transactions-heading-actions"><span className={`status-pill ${data?.accountMode==='REAL'?'mode-real':'mode-demo'}`}>{data?`${data.accountMode} ACCOUNT`:'Loading account'}</span><Link href="/wallet" className="wallet-transactions-wallet-link"><WalletCards size={15}/> Open wallet</Link></div></header>
 		{preferenceError&&<div className="account-callout mb-3" role="alert">{preferenceError}</div>}
-		{!historyPreferenceReady?<section className="account-panel card p-5" role="status">Loading transaction history preference…</section>:historyHidden?<section className="account-panel card p-5"><div className="account-panel-title"><div><h2>Transaction history is hidden</h2><p className="account-panel-subtitle">Your funding and ledger records remain unchanged. Restore this list whenever you want.</p></div><button type="button" className="btn min-h-10 bg-white/5" onClick={()=>setHistoryVisibility(false)}>Restore history</button></div></section>:<>
+		{!historyPreferenceReady?<section className="account-panel card p-5" role="status">Loading history…</section>:historyHidden?<section className="account-panel card p-5"><div className="account-panel-title"><div><h2>Transaction history hidden</h2><p className="account-panel-subtitle">Records are unchanged.</p></div><button type="button" className="btn min-h-10 bg-white/5" onClick={()=>setHistoryVisibility(false)}>View history</button></div></section>:<>
 		<section className="wallet-transactions-summary" aria-label="Funding request summary">
 			<div><span><WalletCards size={15}/> All requests</span><b>{data?allTransactions.length:'—'}</b><small>Deposits and withdrawals</small></div>
 			<div><span><Clock3 size={15}/> In progress</span><b>{data?pendingCount:'—'}</b><small>Pending, review, or processing</small></div>
@@ -79,9 +82,9 @@ export default function TransactionsPage(){
 		</section>
 		<DisplayCurrencyPanel values={displayValues}/>
 		<section className="account-panel card p-5 wallet-transactions-panel"><div className="account-panel-title"><div><span className="account-kicker">ACCOUNT ACTIVITY</span><h2><WalletCards size={17} className="gold"/> Funding requests</h2><p className="account-panel-subtitle">Each request shows its latest recorded review state. A request is not confirmation of payment or settlement.</p></div><button type="button" className="icon-action" aria-label="Refresh transaction history" onClick={()=>void load()}><RefreshCw size={15}/></button></div>
-			<div className="mb-3 flex justify-end"><button type="button" className="text-link" disabled={!historyPreferenceReady} onClick={()=>setHistoryVisibility(true)}>Hide transaction list</button></div>
-			<div className="transaction-history-filters" role="group" aria-label="Filter transactions">{(['ALL','DEPOSIT','WITHDRAWAL'] as const).map(value=><button key={value} type="button" aria-pressed={filter===value} onClick={()=>setFilter(value)}>{value==='ALL'?'All':value==='DEPOSIT'?'Deposits':'Withdrawals'}</button>)}</div>
-			{error?<div className="account-empty transaction-history-error" role="alert"><p>{error}</p><button type="button" className="text-link" onClick={()=>void load(true)}><RefreshCw size={14}/> Retry</button></div>:loading&&!data?<div className="account-empty" role="status">Loading transaction history…</div>:transactions.length?<div className="transaction-history-list">{transactions.map(item=><Link className="transaction-history-row" href={`/wallet/transactions/${encodeURIComponent(item.id)}`} key={item.id}><span className={`transaction-history-icon ${item.type==='DEPOSIT'?'is-deposit':'is-withdrawal'}`}>{item.type==='DEPOSIT'?<ArrowDownLeft size={17}/>:<ArrowUpRight size={17}/>}</span><span className="transaction-history-main"><b>{item.type==='DEPOSIT'?'Deposit':'Withdrawal'} · {item.method}</b><small>{item.id}</small><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString()}</time></span><span className="transaction-history-amount">{money(item.amount,item.currency)}<small className={`status-pill status-${item.status.toLowerCase().replaceAll('_','-')}`}>{statusLabels[item.status]||item.status.replaceAll('_',' ')}</small></span></Link>)}</div>:<div className="notification-empty-state"><WalletCards size={25} aria-hidden="true"/><h3>{data?.transactions.length?'No matching requests':'No transactions yet'}</h3><p>{data?.transactions.length?'Choose another filter to see your requests.':'Funding requests will appear here after you submit them.'}</p><Link href="/wallet" className="text-link">Open wallet</Link></div>}
+			<div className="mb-3 flex justify-end"><button type="button" className="text-link" disabled={!historyPreferenceReady} onClick={()=>setHistoryVisibility(true)}>Hide history</button></div>
+			<div className="transaction-history-filters" role="group" aria-label="Filter transactions">{(['ALL','DEPOSIT','WITHDRAWAL'] as const).map(value=><button key={value} type="button" aria-pressed={filter===value} onClick={()=>{setFilter(value);setPage(1)}}>{value==='ALL'?'All':value==='DEPOSIT'?'Deposits':'Withdrawals'}</button>)}</div>
+			{error?<div className="account-empty transaction-history-error" role="alert"><p>{error}</p><button type="button" className="text-link" onClick={()=>void load(true)}><RefreshCw size={14}/> Retry</button></div>:loading&&!data?<div className="account-empty" role="status">Loading history…</div>:transactions.length?<><div className="transaction-history-list">{visibleTransactions.map(item=><Link className="transaction-history-row" href={`/wallet/transactions/${encodeURIComponent(item.id)}`} key={item.id}><span className={`transaction-history-icon ${item.type==='DEPOSIT'?'is-deposit':'is-withdrawal'}`}>{item.type==='DEPOSIT'?<ArrowDownLeft size={17}/>:<ArrowUpRight size={17}/>}</span><span className="transaction-history-main"><b>{item.type==='DEPOSIT'?'Deposit':'Withdrawal'} · {item.method}</b><small>{item.id}</small><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString()}</time></span><span className="transaction-history-amount">{money(item.amount,item.currency)}<small className={`status-pill status-${item.status.toLowerCase().replaceAll('_','-')}`}>{statusLabels[item.status]||item.status.replaceAll('_',' ')}</small></span></Link>)}</div><div className="activity-pagination"><span>Page {page} of {pageCount}</span><div className="flex gap-2"><button type="button" className="button-secondary" disabled={page<=1} onClick={()=>setPage(value=>Math.max(1,value-1))}><ArrowLeft size={13}/>Previous</button><button type="button" className="button-secondary" disabled={page>=pageCount} onClick={()=>setPage(value=>Math.min(pageCount,value+1))}>Next<ArrowUpRight size={13}/></button></div></div></>:<div className="notification-empty-state"><WalletCards size={25} aria-hidden="true"/><h3>{data?.transactions.length?'No matching requests':'No transactions yet'}</h3><p>{data?.transactions.length?'Choose another filter to see your requests.':'Funding requests will appear here after you submit them.'}</p><Link href="/wallet" className="text-link">Open wallet</Link></div>}
 		</section>
 		</>}
 	</main></>;

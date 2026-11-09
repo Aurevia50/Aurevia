@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {useSession} from 'next-auth/react';
-import {Activity,Archive,ArrowUpRight,Building2,CircleDollarSign,Landmark,ReceiptText,RefreshCw,Search,ShieldCheck,Trash2,TrendingUp,WalletCards} from 'lucide-react';
+import {Activity,Archive,ArrowLeft,ArrowRight,ArrowUpRight,Building2,CircleDollarSign,Landmark,ReceiptText,RefreshCw,Search,ShieldCheck,Trash2,TrendingUp,WalletCards} from 'lucide-react';
 import Nav from '@/components/Nav';
 import DisplayCurrencyPanel from '@/components/DisplayCurrencyPanel';
 import {activityCategoryLabel,type ActivityCategory,type ActivityRecord} from '@/lib/activity';
@@ -31,13 +31,15 @@ export default function AccountActivityExperience(){
   const [state,setState]=useState<ActivityState>('active');
   const [selected,setSelected]=useState<Set<string>>(new Set());
   const [busy,setBusy]=useState(false);
+  const [offset,setOffset]=useState(0);
+  const [logsVisible,setLogsVisible]=useState(false);
   const latestRequest=useRef(0);
 
-  const load=useCallback(async(showLoading=false,offset=0,append=false)=>{
+  const load=useCallback(async(showLoading=false,requestedOffset=0)=>{
     const requestId=++latestRequest.current;
     if(showLoading)setLoading(true);
     try{
-      const params=new URLSearchParams({category,limit:'30',offset:String(offset),state});
+      const params=new URLSearchParams({category,limit:'5',offset:String(requestedOffset),state});
       if(search.trim())params.set('search',search.trim());
       if(statusFilter)params.set('status',statusFilter);
       if(dateFrom){const boundary=localDateBoundary(dateFrom);if(boundary)params.set('dateFrom',boundary)}
@@ -45,16 +47,16 @@ export default function AccountActivityExperience(){
       const response=await fetch(`/api/activity?${params.toString()}`,{cache:'no-store'});
       const body=await response.json();
       if(!response.ok)throw new Error(body.error||'Unable to load account activity.');
-      if(requestId===latestRequest.current){setData(current=>append&&current?{...body,data:{...body.data,items:[...current.data.items,...body.data.items]}}:body);setError('');setSelected(new Set());}
+      if(requestId===latestRequest.current){setData(body);setError('');setSelected(new Set());}
     }
     catch(exception){if(requestId===latestRequest.current)setError(exception instanceof Error?exception.message:'Unable to load account activity.');}
     finally{if(requestId===latestRequest.current)setLoading(false);}
   },[category,dateFrom,dateTo,search,state,statusFilter]);
 
-  useEffect(()=>{setData(null);void load(true)},[load,session?.user?.accountMode]);
+  useEffect(()=>{setData(null);setOffset(0);void load(true,0)},[load,session?.user?.accountMode]);
 
   function changeCategory(next:ActivityCategory){if(next!==category){setCategory(next);setError('');}}
-  function toggleLoading(){void load(true)}
+  function toggleLoading(){setOffset(0);void load(true,0)}
   const recordKey=(item:ActivityRecord)=>`${item.source}:${item.id}`;
   const selectedItems=data?.data.items.filter(item=>selected.has(recordKey(item)))||[];
   function toggleSelected(item:ActivityRecord){const key=recordKey(item);setSelected(current=>{const next=new Set(current);if(next.has(key))next.delete(key);else next.add(key);return next;});}
@@ -69,7 +71,7 @@ export default function AccountActivityExperience(){
       if(!response.ok)throw new Error(result.error||'Unable to update account activity.');
       const failures=(result.results||[]).filter((item:{eligible:boolean})=>!item.eligible).length;
       setNotice(`${result.affected} item${result.affected===1?'':'s'} updated.${failures?` ${failures} protected or unavailable item${failures===1?' was':'s were'} not changed.`:''}`);
-      await load(true);
+      setOffset(0);await load(true,0);
     }catch(exception){setError(exception instanceof Error?exception.message:'Unable to update account activity.');}
     finally{setBusy(false)}
   }
@@ -81,7 +83,7 @@ export default function AccountActivityExperience(){
       const result=await response.json();
       if(!response.ok)throw new Error(result.error||'Unable to clear eligible activity.');
       setNotice(`${result.affected} eligible item${result.affected===1?' was':'s were'} removed from this feed.${result.capped?' The per-source safety limit was reached; run Clear history again to continue.':''}`);
-      await load(true);
+      setOffset(0);await load(true,0);
     }catch(exception){setError(exception instanceof Error?exception.message:'Unable to clear eligible activity.');}
     finally{setBusy(false)}
   }
@@ -113,9 +115,9 @@ export default function AccountActivityExperience(){
       {notice&&<p className="mt-3 text-sm text-profit" role="status">{notice}</p>}
     </section>
     <section className="account-panel card mt-4 overflow-hidden activity-records">
-      <div className="account-panel-title px-4 pt-4 activity-records-heading"><div><span className="activity-records-kicker">ACCOUNT LEDGER</span><h2>{data?.categoryLabel||activityCategoryLabel(category)}</h2><p className="account-panel-subtitle">{data?`${data.data.total} recorded entries`:'Loading persisted activity'}</p></div><span className={`status-pill ${data?.accountMode==='REAL'?'mode-real':'mode-demo'}`}>{data?.accountMode||'ACCOUNT'}</span></div>
-      {loading&&!data?<div className="account-empty" role="status">Loading account activity…</div>:data?.data.items.length?<div className="activity-feed">{activityRows}</div>:<div className="account-empty activity-empty"><Activity size={22} aria-hidden="true"/><p>No activity matches this filter.</p><small>Financial and security records remain protected even when hidden from this feed.</small></div>}
-      {data&&<div className="activity-pagination"><span>Showing {data.data.items.length} of {data.data.total} loaded matches</span>{data.data.hasMore&&<button type="button" className="button-secondary" onClick={()=>void load(false,data.data.items.length,true)} disabled={loading}>Load more <ArrowUpRight size={13}/></button>}</div>}
+      <div className="account-panel-title px-4 pt-4 activity-records-heading"><div><span className="activity-records-kicker">ACCOUNT LEDGER</span><h2>{data?.categoryLabel||activityCategoryLabel(category)}</h2><p className="account-panel-subtitle">{data?`${data.data.total} recorded entries`:'Activity history'}</p></div><div className="flex items-center gap-2"><span className={`status-pill ${data?.accountMode==='REAL'?'mode-real':'mode-demo'}`}>{data?.accountMode||'ACCOUNT'}</span><button type="button" className="button-secondary" aria-expanded={logsVisible} onClick={()=>setLogsVisible(value=>!value)}>{logsVisible?'Hide records':'View records'}</button></div></div>
+      {logsVisible&&<>{loading&&!data?<div className="account-empty" role="status">Loading activity…</div>:data?.data.items.length?<div className="activity-feed">{activityRows}</div>:<div className="account-empty activity-empty"><Activity size={22} aria-hidden="true"/><p>No activity matches this filter.</p></div>}
+      {data&&<div className="activity-pagination"><span>Page {Math.floor(offset/5)+1} · {data.data.total} records</span><div className="flex gap-2"><button type="button" className="button-secondary" onClick={()=>{const next=Math.max(0,offset-5);setOffset(next);void load(false,next)}} disabled={loading||offset===0}><ArrowLeft size={13}/>Previous</button><button type="button" className="button-secondary" onClick={()=>{const next=offset+5;setOffset(next);void load(false,next)}} disabled={loading||!data.data.hasMore}>Next<ArrowRight size={13}/></button></div></div>}</>}
     </section>
   </main></>;
 }

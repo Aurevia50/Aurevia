@@ -6,7 +6,7 @@ import {db} from '@/lib/db';
 import {jsonSafe} from '@/lib/serializers';
 import {removeSimulatedLabels} from '@/lib/display-copy';
 
-const pageSize=10;
+const pageSize=5;
 const querySchema=z.object({
 	page:z.coerce.number().int().min(1).max(Math.floor(Number.MAX_SAFE_INTEGER/pageSize)).default(1),
 	search:z.string().trim().max(160).default(''),
@@ -41,12 +41,19 @@ export async function GET(request:Request){
 		const loginUserId=new URL(request.url).searchParams.get('loginUserId');
 		if(loginUserId){
 			if(loginUserId.length>128)return NextResponse.json({error:'Invalid user identifier.'},{status:400});
+			const loginPageResult=z.coerce.number().int().min(1).max(Math.floor(Number.MAX_SAFE_INTEGER/pageSize)).safeParse(new URL(request.url).searchParams.get('page')||'1');
+			if(!loginPageResult.success)return NextResponse.json({error:'Invalid login history page.'},{status:400});
+			const loginPage=loginPageResult.data;
 			const events=await db.$transaction(async tx=>{
-				const records=await tx.auditLog.findMany({where:{entity:'LOGIN',actorId:loginUserId},select:{id:true,actorId:true,action:true,entity:true,metadata:true,createdAt:true},orderBy:[{createdAt:'desc'},{id:'desc'}],take:100});
-				await tx.auditLog.create({data:{actorId:admin.id,action:'ADMIN_LOGIN_HISTORY_VIEWED',entity:'LOGIN_HISTORY',entityId:loginUserId,metadata:{recordCount:records.length}}});
-				return records;
+				const where={entity:'LOGIN',actorId:loginUserId};
+				const [total,records]=await Promise.all([
+					tx.auditLog.count({where}),
+					tx.auditLog.findMany({where,select:{id:true,actorId:true,action:true,entity:true,metadata:true,createdAt:true},orderBy:[{createdAt:'desc'},{id:'desc'}],skip:(loginPage-1)*pageSize,take:pageSize}),
+				]);
+				await tx.auditLog.create({data:{actorId:admin.id,action:'ADMIN_LOGIN_HISTORY_VIEWED',entity:'LOGIN_HISTORY',entityId:loginUserId,metadata:{recordCount:records.length,page:loginPage}}});
+				return {records,total};
 			});
-			return NextResponse.json(jsonSafe(events.map(event=>({...event,action:removeSimulatedLabels(event.action)}))),{headers:{'Cache-Control':'private, no-store'}});
+			return NextResponse.json(jsonSafe({items:events.records.map(event=>({...event,action:removeSimulatedLabels(event.action)})),total:events.total,page:loginPage,pageSize,totalPages:Math.ceil(events.total/pageSize)}),{headers:{'Cache-Control':'private, no-store'}});
 		}
 
 		const input=querySchema.parse(params);

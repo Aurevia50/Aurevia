@@ -6,7 +6,7 @@ import {rateLimit} from '@/lib/rate-limit';
 
 const revokeSchema=z.object({userId:z.string().min(1).max(128),sessionRef:z.string().regex(/^[a-f0-9]{24}$/)});
 const pageSchema=z.coerce.number().int().min(0).max(1000);
-const pageSize=200;
+const pageSize=5;
 
 function deviceSummary(userAgent:string|null){
 	const ua=userAgent||'';
