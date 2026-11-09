@@ -138,11 +138,12 @@ export default function Nav(){
    return;
   }
   let active=true;
+  const controller=new AbortController();
   setTaxServicesAvailable(false);
   const checkAccess=async()=>{
    if(document.visibilityState!=='visible')return;
    try{
-    const response=await fetch('/api/tax-services/access',{cache:'no-store'});
+    const response=await fetch('/api/tax-services/access',{cache:'no-store',signal:controller.signal});
     if(!response.ok){
      if(response.status!==401&&response.status!==403)console.error('Unable to check tax-service navigation access.',response.status);
      if(active)setTaxServicesAvailable(false);
@@ -151,7 +152,7 @@ export default function Nav(){
     const result=await response.json();
     if(active)setTaxServicesAvailable(result.hasAccess===true);
    }catch(exception){
-    console.error('Unable to check tax-service navigation access.',exception instanceof Error?exception.name:'UnknownError');
+    if(active&&!controller.signal.aborted)console.error('Unable to check tax-service navigation access.',exception instanceof Error?exception.name:'UnknownError');
    }
   };
   void checkAccess();
@@ -159,6 +160,7 @@ export default function Nav(){
   window.addEventListener('focus',checkAccess);
   return()=>{
    active=false;
+   controller.abort();
    window.clearInterval(interval);
    window.removeEventListener('focus',checkAccess);
   };

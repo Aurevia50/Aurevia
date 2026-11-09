@@ -1,0 +1,58 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: Aurevia-Exchange-main/aurevia
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.1
+          cache: npm
+          cache-dependency-path: Aurevia-Exchange-main/aurevia/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Check types
+        run: npm run typecheck
+
+      - name: Run unit and API tests
+        run: npm test
+
+      - name: Install Chromium and Linux dependencies
+        run: npm run browsers:install -- --with-deps
+
+      - name: Run isolated Playwright tests
+        run: npm run test:e2e:isolated
+
+      - name: Build production application
+        run: npm run build
+
+      - name: Upload Playwright reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aurevia-playwright-reports
+          path: |
+            Aurevia-Exchange-main/aurevia/playwright-report/
+            Aurevia-Exchange-main/aurevia/test-results/
+          if-no-files-found: warn
+          retention-days: 7

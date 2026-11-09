@@ -5939,6 +5939,8 @@ body:has(.dashboard-sidebar) .user-dashboard-panel-heading p{font-size:10px}
 	.professional-orders-panel .orders-row>.orders-executions{grid-column:1/-1;grid-row:3}
 	.professional-orders-panel .orders-row>button{grid-column:2;grid-row:2}
 	.news-editorial-heading{align-items:flex-start}
+	.news-editorial-heading>div:first-child{min-width:0}
+	.news-editorial-heading h1{overflow-wrap:anywhere}
 	.news-editorial-mark{width:82px;height:82px}
 	.news-editorial-mark>svg{width:21px}
 	.news-editorial-mark span{font-size:6px}

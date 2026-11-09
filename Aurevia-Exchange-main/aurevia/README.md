@@ -476,7 +476,38 @@ The current source includes:
 
 ## Verification evidence
 
-Run verification from `aurevia/` with `npm run lint`, `npm run typecheck`, `npm test`, `npm run tools:verify`, `npm run build`, and `npm run test:e2e:isolated`. The E2E runner provisions and removes a disposable loopback-only PostgreSQL database; it clears shared database and Supabase credentials before starting the application. Chromium binaries are restored by `npm run tools:install` and remain ignored by Git.
+Run verification from `aurevia/` with `npm run test:all`, `npm run tools:verify`, and `npm run build`. The E2E runner provisions and removes a disposable loopback-only PostgreSQL database; it clears shared database and Supabase credentials before starting the application. Chromium binaries are restored by `npm run tools:install` and remain ignored by Git.
+
+The automated suite uses Vitest for unit/API tests and Playwright for browser flows, route/theme/responsive checks, and axe accessibility scans. Playwright remains single-worker because its financial and authentication fixtures share mutable state. Chromium is the default browser; run `npm run browsers:install -- --all` to install Firefox/WebKit. `npm run test:e2e:all-browsers` runs Chromium, Firefox, and WebKit sequentially, each against a fresh disposable database so financial fixtures cannot leak state between browsers. CI uploads HTML reports, test results, and failure traces even when a test fails. Automatic Render deployment from `main` waits for the test workflow to succeed.
+
+The source-level API route inventory is `tests/api-route-inventory.csv`. It lists every route and exported method, direct-handler test-import evidence, and static source hints for authentication, authorization, validation, response status/builders, data access, and sensitivity. `F`, `P`, and `U` mean full-method, partial-method, and no direct handler test import found; they are not test execution results. One route whose status conflicts with the report's test-file mapping is marked `UNRESOLVED`. The dedicated `npm run test:e2e:api-routes` command runs an isolated unauthenticated empty-request smoke check for all 227 inventoried methods. A passing smoke check does not establish valid-payload behavior, authenticated success, data isolation, duplicate handling, or complete authorization coverage. Static hints and the limitations column explicitly flag where per-method branch behavior still needs review.
+
+```bash
+npm test
+npm run test:watch
+npm run test:coverage
+npm run typecheck
+npm run test:e2e:isolated
+npm run test:e2e:chromium
+npm run test:e2e:all-browsers
+npm run test:e2e:api-routes
+npm run test:e2e:accessibility
+npm run test:e2e:lighthouse
+npm run test:e2e:headed
+npm run test:e2e:ui
+npm run test:e2e:debug
+npm run test:e2e:report
+```
+
+For Lighthouse, start the application against an isolated/test database and pass its loopback URL explicitly. The audit refuses remote hosts and writes `playwright-report/lighthouse.html`; no default port is assumed:
+
+```bash
+AUREVIA_LIGHTHOUSE_URL=http://127.0.0.1:4310 npm run test:lighthouse
+```
+
+`npm run test:e2e:lighthouse` builds and starts the local production-mode application on the disposable E2E database, signs in only with temporary fixture accounts, and measures the landing, login, registration, dashboard, markets, trade, portfolio, wallet, and admin dashboard pages. It prints per-page Performance, Accessibility, Best Practices, and SEO scores plus actionable audit items; the sanitized score summary is saved under `test-results/`.
+
+This audit uses the Playwright-installed Chromium binary. Run `npm run browsers:install -- --with-deps` first if browser binaries or Linux libraries are missing.
 
 This verification does not clear production for release. The last read-only migration-status check found `20261019103000_alpaca_paper_order_account` and `20261019120000_btc_funding_and_paper_buying_power` unapplied in the configured database, while its history recorded `20261013110000_payment_method_network`, which is absent from this checkout and Git history. Reconcile that history with the database owner and review existing BTC transaction references for duplicates before considering the partial unique index; do not mark migrations applied or run SQL until the intended migration contents and production data are verified and an authorized migration plan is approved. The additional additive migration `20261027100000_alpaca_paper_execution_reconciliation` was not applied. Alpaca Paper account retrieval and order submission have not been verified with configured credentials; keep paper submission disabled until credentials, enablement, migration status, and an isolated end-to-end paper test are confirmed. Live execution remains disabled.
 

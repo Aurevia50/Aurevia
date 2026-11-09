@@ -1,7 +1,7 @@
 import {NextResponse} from 'next/server';
 import {Prisma} from '@prisma/client';
 import {z,ZodError} from 'zod';
-import {requireAdmin} from '@/lib/auth';
+import {authFailureStatus,requireAdmin} from '@/lib/auth';
 import {db} from '@/lib/db';
 import {jsonSafe} from '@/lib/serializers';
 
@@ -37,6 +37,8 @@ export async function PATCH(request:Request){
 		});
 		return NextResponse.json(jsonSafe(updated),{headers:{'Cache-Control':'private, no-store'}});
 	}catch(error){
+		const authStatus=authFailureStatus(error);
+		if(authStatus)return NextResponse.json({error:authStatus===401?'Unauthorized':'Forbidden'},{status:authStatus});
 		if(error instanceof ZodError)return NextResponse.json({error:'Invalid catalog update.'},{status:400});
 		return NextResponse.json({error:'Unable to update catalog.'},{status:500});
 	}

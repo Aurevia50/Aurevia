@@ -1,7 +1,11 @@
 name: Deploy to Render
 
 on:
-  push:
+  workflow_run:
+    workflows:
+      - Test
+    types:
+      - completed
     branches:
       - main
   workflow_dispatch:
@@ -11,10 +15,36 @@ permissions:
 
 jobs:
   deploy:
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     steps:
+      - name: Check out current main
+        if: github.event_name == 'workflow_run'
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Skip stale successful test runs
+        if: github.event_name == 'workflow_run'
+        id: current
+        env:
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          current_sha="$(git rev-parse HEAD)"
+          if [ "$TESTED_SHA" != "$current_sha" ]; then
+            echo "Skipping deployment because a newer main commit has not passed CI."
+            echo "is_current=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_current=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Trigger Render deployment
+        if: github.event_name == 'workflow_dispatch' || steps.current.outputs.is_current == 'true'
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |

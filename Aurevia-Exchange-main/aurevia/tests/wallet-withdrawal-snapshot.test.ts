@@ -8,7 +8,7 @@ const mocks=vi.hoisted(()=>({
 	notifyActiveAdmins:vi.fn(),sendSupportEmail:vi.fn(),rateLimit:vi.fn(),
 }));
 
-vi.mock('@/lib/auth',()=>({requireUser:mocks.requireUser}));
+vi.mock('@/lib/auth',()=>({authFailureStatus:()=>null,requireUser:mocks.requireUser}));
 vi.mock('@/lib/db',()=>({db:{
 	user:{findUnique:mocks.userFindUnique},
 	withdrawalDestination:{findFirst:mocks.destinationFindFirst},

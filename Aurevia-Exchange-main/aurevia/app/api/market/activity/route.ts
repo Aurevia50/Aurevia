@@ -1,12 +1,19 @@
 import {NextResponse} from 'next/server';
-import {requireUser} from '@/lib/auth';
+import {authFailureStatus,requireUser} from '@/lib/auth';
 import {db} from '@/lib/db';
 import {jsonSafe} from '@/lib/serializers';
 
 export const dynamic='force-dynamic';
 
 export async function GET(){
-	const user=await requireUser();
+	let user:Awaited<ReturnType<typeof requireUser>>;
+	try{
+		user=await requireUser();
+	}catch(error){
+		const authStatus=authFailureStatus(error);
+		if(!authStatus)throw error;
+		return NextResponse.json({error:authStatus===401?'Unauthorized':'Forbidden'},{status:authStatus});
+	}
 	const current=await db.user.findUnique({where:{id:user.id},select:{accountMode:true}});
 	if(!current)return NextResponse.json({error:'Account not found.'},{status:404});
 	const {id:userId}=user;

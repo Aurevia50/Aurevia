@@ -1,7 +1,7 @@
 import {NextResponse} from 'next/server';
 import {AccountMode,Prisma,FundingStatus,FundingType,NotificationType} from '@prisma/client';
 import {z,ZodError} from 'zod';
-import {requireUser} from '@/lib/auth';
+import {authFailureStatus,requireUser} from '@/lib/auth';
 import {db} from '@/lib/db';
 import {balance,ensureUserLedger,roundUsdAmount} from '@/lib/ledger';
 import {jsonSafe} from '@/lib/serializers';
@@ -260,6 +260,8 @@ export async function POST(req:Request){
 		return NextResponse.json({...jsonSafe(safeRequest),withdrawalDestination,hasReceipt:!!storedReceiptKey,emailDelivery},{status:result.replay?200:201});
 	}catch(error){
 		if(receiptKey&&ownerId)await deletePrivateObject('receipt',ownerId,receiptKey);
+		const authStatus=authFailureStatus(error);
+		if(authStatus)return NextResponse.json({error:authStatus===401?'Unauthorized':'Forbidden'},{status:authStatus});
 		if(error instanceof ZodError)return NextResponse.json({error:'Check the funding amount and request details, including any BTC network fields.'},{status:400});
 		if(error instanceof FundingEvidenceError)return NextResponse.json({error:error.message},{status:error.status});
 		if(error instanceof PrivateStorageError)return NextResponse.json({error:error.message},{status:error.status});

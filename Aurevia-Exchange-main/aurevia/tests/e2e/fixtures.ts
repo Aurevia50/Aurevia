@@ -3,7 +3,7 @@ import {PrismaClient} from '@prisma/client';
 import {randomInt} from 'node:crypto';
 import {fallbackRoutes} from './theme-route-inventory';
 
-type RuntimeCapture={consoleErrors:string[];pageErrors:string[];failedRequests:string[];failedResponses:Array<{url:string;status:number}>};
+type RuntimeCapture={consoleErrors:string[];consoleErrorOrigins:string[];pageErrors:string[];failedRequests:string[];cancelledRequests:string[];pendingRequests:string[];failedResponses:Array<{url:string;status:number}>};
 const marketProviderConfigured=!process.env.AUREVIA_E2E_DATABASE_URL&&Boolean(
 	process.env.FINNHUB_API_KEY||
 	process.env.ALPACA_API_KEY&&(process.env.ALPACA_SECRET_KEY||process.env.ALPACA_API_SECRET),
@@ -17,6 +17,34 @@ base.afterAll(async()=>{await e2eDb?.$disconnect()});
 
 function isolatedLoginIp(){
 	return `198.18.${randomInt(0,256)}.${randomInt(1,255)}`;
+}
+
+function cancelledRequestTarget(url:string){
+	const parsed=new URL(url);
+	return `${parsed.host}${parsed.pathname}${parsed.search}`;
+}
+
+function cancelledRequestFromPageError(message:string){
+	const host=new URL(appOrigin).host.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+	const match=message.match(new RegExp(`${host}(/[^\\s]+?) due to access control checks\\.`));
+	return match?new URL(match[1],appOrigin).href:null;
+}
+
+function cancelledFetchConsoleTarget(message:string){
+	if(message==='Profile photo is unavailable. TypeError')return '/api/profile/avatar';
+	if(message==='Profile photo is unavailable. AbortError')return '/api/profile/avatar';
+	if(message==='Unable to refresh the account tier. TypeError')return '/api/profile';
+	if(message==='Unable to check tax-service navigation access. TypeError')return '/api/tax-services/access';
+	if(message==='Account theme preference could not be loaded. TypeError')return '/api/theme-preference';
+	if(message.includes('[next-auth][error][CLIENT_FETCH_ERROR]')&&message.includes('url: /api/auth/session'))return '/api/auth/session';
+	return null;
+}
+
+function consumeCancelledTarget(counts:Map<string,number>,target:string){
+	const count=counts.get(target)||0;
+	if(count===0)return false;
+	counts.set(target,count-1);
+	return true;
 }
 
 export const test=base;
@@ -57,7 +85,8 @@ export async function loginAs(page:Page,email:string,password:string){
 			await expect(replaceSession).toBeChecked();
 		}
 		await passwordInput.press('Enter');
-		await page.waitForURL(administrator?/\/admin(?:$|\/)/:/dashboard/);
+		await expect(page).toHaveURL(administrator?/\/admin(?:$|\/)/:/dashboard/,{timeout:30000});
+		await page.waitForLoadState('load');
 		await expect.poll(async()=>{
 			const response=await page.request.get('/api/auth/session');
 			if(!response.ok())return null;
@@ -114,22 +143,43 @@ test.beforeEach(async({page},testInfo)=>{
 		contentType:'application/json',
 		body:JSON.stringify({status:'no_signal',message:'No recommendation is currently available.',evaluationIntervalSeconds:300,recommendations:[]}),
 	}));
-	const capture:RuntimeCapture={consoleErrors:[],pageErrors:[],failedRequests:[],failedResponses:[]};
+	const capture:RuntimeCapture={consoleErrors:[],consoleErrorOrigins:[],pageErrors:[],failedRequests:[],cancelledRequests:[],pendingRequests:[],failedResponses:[]};
 	(page as Page & {__runtimeCapture?:RuntimeCapture}).__runtimeCapture=capture;
 	page.on('console',message=>{
 		const expectedFundingFailure=(testInfo.title.includes('Account Funding')||testInfo.title.includes('Wallet shows the internal funding workflow'))&&message.text().includes('503 (Service Unavailable)');
 		const expectedAssistantFailure=testInfo.title.includes('support fallback')&&message.text().includes('503 (Service Unavailable)');
 		const expectedUnavailableMarket=!marketProviderConfigured&&message.text().includes('503 (Service Unavailable)');
 		const expectedDuplicateRegistration=testInfo.title.includes('duplicate signup offers sign-in')&&message.text().includes('status of 409 (Conflict)');
-		if(message.type()==='error'&&!message.text().includes('status of 400 (Bad Request)')&&!message.text().includes('status of 401 (Unauthorized)')&&!expectedFundingFailure&&!expectedAssistantFailure&&!expectedUnavailableMarket&&!expectedDuplicateRegistration)capture.consoleErrors.push(message.text());
+		if(message.type()==='error'&&!message.text().includes('status of 400 (Bad Request)')&&!message.text().includes('status of 401 (Unauthorized)')&&!expectedFundingFailure&&!expectedAssistantFailure&&!expectedUnavailableMarket&&!expectedDuplicateRegistration){
+			capture.consoleErrors.push(message.text());
+			const source=message.location().url;
+			capture.consoleErrorOrigins.push(source.startsWith('http://')||source.startsWith('https://')?new URL(source).origin:'inline-or-unknown');
+		}
 	});
-	page.on('pageerror',error=>capture.pageErrors.push(error.message));
+	page.on('pageerror',error=>{
+		const cancelledUrl=cancelledRequestFromPageError(error.message);
+		if(cancelledUrl)capture.cancelledRequests.push(cancelledUrl);
+		capture.pageErrors.push(error.message);
+	});
+	page.on('request',request=>{
+		if(request.url().startsWith(appOrigin)&&(request.resourceType()==='fetch'||request.resourceType()==='xhr'))capture.pendingRequests.push(request.url());
+	});
+	const finishPendingRequest=(request:import('@playwright/test').Request)=>{
+		const index=capture.pendingRequests.indexOf(request.url());
+		if(index>=0)capture.pendingRequests.splice(index,1);
+	};
 	page.on('requestfailed',request=>{
 		const failure=request.failure()?.errorText||'request failed';
-		if(failure==='net::ERR_ABORTED'||failure.includes('ERR_ABORTED'))return;
+		if(failure.includes('ERR_ABORTED')||failure==='NS_BINDING_ABORTED'||failure==='Load request cancelled'){
+			if(request.url().startsWith(appOrigin))capture.cancelledRequests.push(request.url());
+			finishPendingRequest(request);
+			return;
+		}
+		finishPendingRequest(request);
 		if(request.url().startsWith(appOrigin))capture.failedRequests.push(`${request.method()} ${request.url()} · ${failure}`);
 	});
 	page.on('response',response=>{
+		finishPendingRequest(response.request());
 		if(response.status()<400||!response.url().startsWith(appOrigin))return;
 		capture.failedResponses.push({url:response.url(),status:response.status()});
 	});
@@ -139,6 +189,22 @@ test.afterEach(async({page},testInfo)=>{
 	const capture=(page as Page & {__runtimeCapture?:RuntimeCapture}).__runtimeCapture;
 	if(!capture)return;
 	await testInfo.attach('browser-runtime.json',{body:Buffer.from(JSON.stringify(capture,null,2)),contentType:'application/json'});
+	const cancelledTargets=new Map<string,number>();
+	for(const message of capture.consoleErrors){
+		const target=cancelledFetchConsoleTarget(message);
+		if(target&&message.endsWith('AbortError')&&capture.pendingRequests.some(url=>cancelledRequestTarget(url)===`${new URL(appOrigin).host}${target}`)){
+			cancelledTargets.set(`${new URL(appOrigin).host}${target}`,(cancelledTargets.get(`${new URL(appOrigin).host}${target}`)||0)+1);
+		}
+	}
+	for(const url of capture.cancelledRequests){
+		const target=cancelledRequestTarget(url);
+		cancelledTargets.set(target,(cancelledTargets.get(target)||0)+1);
+	}
+	const cancelledPageErrors=new Map(cancelledTargets);
+	const unexpectedPageErrors=capture.pageErrors.filter(message=>{
+		const target=[...cancelledPageErrors.keys()].find(candidate=>message.includes(candidate)&&message.includes('due to access control checks'));
+		return !(target&&consumeCancelledTarget(cancelledPageErrors,target));
+	});
 	const expectedFallbackResponse=testInfo.title.includes('public routes render without horizontal overflow')?capture.failedResponses.filter(response=>fallbackRoutes.some(route=>new URL(response.url).pathname===route)&&response.status===404):[];
 	const expectedClientErrors=[...expectedFallbackResponse,...capture.failedResponses.filter(response=>(testInfo.title.includes('duplicate signup offers sign-in')&&response.url.endsWith('/api/register')&&response.status===409)||(testInfo.title.includes('registration fails closed when Akedly credentials are unavailable')&&response.url.endsWith('/api/register')&&response.status===503)||(response.url.endsWith('/api/auth/callback/credentials')&&response.status===401)||(testInfo.title.includes('TOTP enrollment')&&response.url.endsWith('/api/security/totp')&&response.status===400)||((testInfo.title.includes('watchlists persist')||testInfo.title.includes('session replacement is explicit')||testInfo.title.includes('Nova escalation reaches admin')||testInfo.title.includes('tier requests require')||testInfo.title.includes('account deletion'))&&response.url.endsWith('/api/notifications?limit=8')&&response.status===401)||(testInfo.title.includes('account deletion')&&((['/api/currency-preference','/api/positions','/api/tax-services/access','/api/profile','/api/profile/avatar'].some(path=>response.url.endsWith(path))&&response.status===401)||(response.url.endsWith('/api/dashboard/overview')&&response.status===403)))|| (testInfo.title.includes('Nova escalation reaches admin')&&response.url.endsWith('/api/support')&&response.status===409)||((testInfo.title.includes('Account Funding')||testInfo.title.includes('Wallet shows the internal funding workflow'))&&(response.url.endsWith('/api/payment-methods')||response.url.endsWith('/api/wallet'))&&response.status===503)||(response.url.includes('/api/live-markets/')&&response.status===503&&!marketProviderConfigured)||(testInfo.title.includes('KYC access is owner-scoped')&&response.url.endsWith('/api/kyc/documents')&&response.status===409))];
 	if(testInfo.title.includes('support fallback'))expectedClientErrors.push(...capture.failedResponses.filter(response=>response.url.endsWith('/api/support/nova')&&response.status===503));
@@ -154,7 +220,11 @@ test.afterEach(async({page},testInfo)=>{
 	let remainingExpectedFallbackErrors=expectedFallbackResponse.length;
 	let remainingSyntheticNotFoundErrors=expectedSyntheticRouteFailures.filter(response=>response.status===404).length;
 	let remainingSyntheticForbiddenErrors=expectedSyntheticRouteFailures.filter(response=>response.status===403).length;
+	const cancelledConsoleErrors=new Map(cancelledTargets);
+	const appHost=new URL(appOrigin).host;
 	const unexpectedConsoleErrors=capture.consoleErrors.filter(message=>{
+		const cancelledTarget=cancelledFetchConsoleTarget(message);
+		if(cancelledTarget&&consumeCancelledTarget(cancelledConsoleErrors,`${appHost}${cancelledTarget}`))return false;
 		if(message==='Failed to load resource: the server responded with a status of 404 (Not Found)'&&remainingExpectedFallbackErrors>0){
 			remainingExpectedFallbackErrors--;
 			return false;
@@ -169,8 +239,8 @@ test.afterEach(async({page},testInfo)=>{
 		}
 		return !(accountClosureAccessDenied&&message.includes('status of 403 (Forbidden)')||accountClosureProfileDenied&&message.includes('Unable to refresh the account tier.'));
 	});
-	expect(unexpectedConsoleErrors,`browser console errors; failed application responses: ${JSON.stringify(capture.failedResponses)}`).toEqual([]);
-	expect(capture.pageErrors,'uncaught browser exceptions').toEqual([]);
+	expect(unexpectedConsoleErrors,`browser console errors from ${JSON.stringify(capture.consoleErrorOrigins)}; cancelled requests: ${JSON.stringify(capture.cancelledRequests)}; page errors: ${JSON.stringify(capture.pageErrors)}; failed application responses: ${JSON.stringify(capture.failedResponses)}`).toEqual([]);
+	expect(unexpectedPageErrors,'uncaught browser exceptions').toEqual([]);
 	expect(capture.failedRequests,'failed application requests').toEqual([]);
 	expect(unexpectedResponses,'unexpected failed application responses').toEqual([]);
 });

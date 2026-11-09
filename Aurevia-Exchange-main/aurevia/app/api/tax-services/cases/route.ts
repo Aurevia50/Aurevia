@@ -1,7 +1,7 @@
 import {NextResponse} from 'next/server';
 import {TaxCaseStatus,TaxServiceType} from '@prisma/client';
 import {z,ZodError} from 'zod';
-import {requireUser} from '@/lib/auth';
+import {authFailureStatus,requireUser} from '@/lib/auth';
 import {db} from '@/lib/db';
 import {createCaseReference,getUserAllowedServices,userHasTaxAccess} from '@/lib/tax-services';
 import {jsonSafe} from '@/lib/serializers';
@@ -57,6 +57,8 @@ export async function POST(request:Request){
 		});
 		return NextResponse.json(jsonSafe(created),{status:201,headers:{'Cache-Control':'private, no-store'}});
 	}catch(error){
+		const authStatus=authFailureStatus(error);
+		if(authStatus)return NextResponse.json({error:authStatus===401?'Unauthorized':'Forbidden'},{status:authStatus});
 		if(error instanceof ZodError)return NextResponse.json({error:'Invalid tax case details.'},{status:400});
 		if(error instanceof Error&&error.message==='RATE_LIMITED')return NextResponse.json({error:'Too many requests.'},{status:429});
 		return NextResponse.json({error:'Unable to create tax case.'},{status:500});

@@ -1,7 +1,7 @@
 import {NextResponse} from 'next/server';
 import {Prisma,CardApplicationStatus,NotificationType,SimulatedCardStatus} from '@prisma/client';
 import {z,ZodError} from 'zod';
-import {requireAdmin} from '@/lib/auth';
+import {authFailureStatus,requireAdmin} from '@/lib/auth';
 import {db} from '@/lib/db';
 import {createCardReference,createMaskedPan,defaultExpiry} from '@/lib/cards';
 import {createNotification} from '@/lib/notifications';
@@ -96,6 +96,8 @@ export async function PATCH(request:Request,{params}:Params){
 		}
 		return NextResponse.json({error:'Unsupported action'},{status:400});
 	}catch(error){
+		const authStatus=authFailureStatus(error);
+		if(authStatus)return NextResponse.json({error:authStatus===401?'Unauthorized':'Forbidden'},{status:authStatus});
 		if(error instanceof ZodError)return NextResponse.json({error:'Invalid request.'},{status:400});
 		console.error('admin card action failed',error instanceof Error?error.name:'UnknownError');
 		return NextResponse.json({error:'Unable to update card application.'},{status:500});

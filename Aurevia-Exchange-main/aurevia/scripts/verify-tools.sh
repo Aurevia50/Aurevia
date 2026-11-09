@@ -8,6 +8,7 @@ node scripts/check-node-version.mjs
 npm ls --depth=0 \
   @playwright/test \
   @axe-core/playwright \
+  @vitest/coverage-v8 \
   @simplewebauthn/browser \
   @simplewebauthn/server \
   bottleneck \
@@ -20,6 +21,7 @@ npm ls --depth=0 \
   qrcode \
   rate-limiter-flexible \
   typescript \
+  lighthouse \
   vitest
-npm exec -- playwright --version
+node node_modules/@playwright/test/cli.js --version
 PLAYWRIGHT_BROWSERS_PATH="$project_root/tools/playwright/browsers" node scripts/verify-playwright-browser.mjs

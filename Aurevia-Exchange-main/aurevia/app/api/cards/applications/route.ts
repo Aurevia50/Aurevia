@@ -1,7 +1,7 @@
 import {NextResponse} from 'next/server';
 import {AccountMode,CardApplicationStatus,NotificationType} from '@prisma/client';
 import {z,ZodError} from 'zod';
-import {requireUser} from '@/lib/auth';
+import {authFailureStatus,requireUser} from '@/lib/auth';
 import {db} from '@/lib/db';
 import {assertNoDuplicatePending,createApplicationReference,ensureCardCatalog} from '@/lib/cards';
 import {createNotification,notifyActiveAdmins} from '@/lib/notifications';
@@ -53,6 +53,8 @@ export async function POST(request:Request){
 		});
 		return NextResponse.json(jsonSafe(application),{status:201,headers:{'Cache-Control':'private, no-store'}});
 	}catch(error){
+		const authStatus=authFailureStatus(error);
+		if(authStatus)return NextResponse.json({error:authStatus===401?'Unauthorized':'Forbidden'},{status:authStatus});
 		if(error instanceof Error&&error.message==='REAL_MODE_REQUIRED')return NextResponse.json({error:'Card applications are available in REAL mode only.'},{status:403});
 		if(error instanceof Error&&error.message==='ACCOUNT_UNAVAILABLE')return NextResponse.json({error:'This account is unavailable.'},{status:403});
 		if(error instanceof ZodError)return NextResponse.json({error:'Accept the product terms and select a card.'},{status:400});

@@ -18,15 +18,16 @@ export default function ProfileAvatar({className='',size=40,alt=''}:{className?:
 	useEffect(()=>{
 		if(status!=='authenticated'){setUrl('');return}
 		let active=true;
+		const controller=new AbortController();
 		const load=async()=>{
 			try{
-				const response=await fetch('/api/profile/avatar',{cache:'no-store'});
+				const response=await fetch('/api/profile/avatar',{cache:'no-store',signal:controller.signal});
 				if(response.status===401||response.status===403||response.status===404){if(active)setUrl('');return}
 				const result=await response.json();
 				if(!response.ok)throw new Error(result.error||'Unable to load profile photo.');
 				if(active&&typeof result.url==='string')setUrl(result.url);
 			}catch(error){
-				if(active)console.error('Profile photo is unavailable.',error instanceof Error?error.name:'UnknownError');
+				if(active&&!controller.signal.aborted)console.error('Profile photo is unavailable.',error instanceof Error?error.name:'UnknownError');
 			}
 		};
 		const onAvatarUpdated=(event:Event)=>{
@@ -37,7 +38,7 @@ export default function ProfileAvatar({className='',size=40,alt=''}:{className?:
 		const refreshTimer=window.setInterval(()=>void load(),90_000);
 		window.addEventListener('focus',load);
 		window.addEventListener(profileAvatarUpdatedEvent,onAvatarUpdated);
-		return()=>{active=false;window.clearInterval(refreshTimer);window.removeEventListener('focus',load);window.removeEventListener(profileAvatarUpdatedEvent,onAvatarUpdated)};
+		return()=>{active=false;controller.abort();window.clearInterval(refreshTimer);window.removeEventListener('focus',load);window.removeEventListener(profileAvatarUpdatedEvent,onAvatarUpdated)};
 	},[status]);
 
 	return <span className={className} style={{display:'grid',placeItems:'center',boxSizing:'border-box',width:size,height:size,aspectRatio:'1 / 1',flexShrink:0,overflow:'hidden',borderRadius:'50%',clipPath:'circle(50%)'}} role={alt?'img':undefined} aria-label={alt||undefined} aria-hidden={alt?undefined:true}>

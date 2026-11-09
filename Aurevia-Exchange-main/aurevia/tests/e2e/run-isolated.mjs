@@ -2,9 +2,11 @@ import nextEnv from '@next/env';
 import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import {createServer} from 'node:net';
+import {resolve} from 'node:path';
 
 const {loadEnvConfig}=nextEnv;
 const projectRoot=process.cwd();
+const prismaCli=resolve(projectRoot,'node_modules/prisma/build/index.js');
 for(const name of ['DATABASE_URL','DIRECT_URL'])delete process.env[name];
 loadEnvConfig(projectRoot,false,undefined,true);
 
@@ -66,7 +68,8 @@ try{
 	portReservations.push(appPortReservation.server);
 	const providerPortReservation=await reserveLoopbackPort();
 	portReservations.push(providerPortReservation.server);
-	const appUrl=`http://127.0.0.1:${appPortReservation.port}`;
+	const appHost='localhost';
+	const appUrl=`http://${appHost}:${appPortReservation.port}`;
 	const providerUrl=`http://127.0.0.1:${providerPortReservation.port}`;
 	const environment={...process.env,DATABASE_URL:databaseUrl,DIRECT_URL:databaseUrl,AUREVIA_E2E_DATABASE_URL:databaseUrl,AUREVIA_E2E_DIRECT_URL:databaseUrl,AUREVIA_E2E_APP_PORT:String(appPortReservation.port),AUREVIA_E2E_PROVIDER_PORT:String(providerPortReservation.port),AUREVIA_E2E_APP_URL:appUrl,AUREVIA_E2E_PROVIDER_URL:providerUrl,CRON_SECRET:randomUUID(),PORT:String(appPortReservation.port),NODE_ENV:'production',ALPACA_PAPER_ORDERS_ENABLED:'false',REAL_EXECUTION_ENABLED:'false',FINNHUB_API_KEY:'',AKEDLY_ENABLED:'false',AKEDLY_API_KEY:'',AKEDLY_PIPELINE_ID:'',AKEDLY_WIDGET_ID:'',AKEDLY_PUBLIC_KEY:'',AKEDLY_WIDGET_SECRET:'',AKEDLY_WEBHOOK_SECRET:'',WITHDRAWAL_DESTINATION_ENCRYPTION_KEY:Buffer.alloc(32,1).toString('base64'),TOTP_ENCRYPTION_KEY:Buffer.alloc(32,2).toString('base64')};
 	for(const name of Object.keys(environment))if(/SUPABASE|STORAGE/i.test(name))environment[name]='';
@@ -85,7 +88,7 @@ try{
 	const storageBootstrap=`CREATE ROLE postgres SUPERUSER LOGIN;\nDO $$ BEGIN CREATE ROLE anon; EXCEPTION WHEN duplicate_object THEN NULL; END $$;\nDO $$ BEGIN CREATE ROLE authenticated; EXCEPTION WHEN duplicate_object THEN NULL; END $$;\nCREATE SCHEMA storage;\nCREATE TABLE storage.buckets (id text PRIMARY KEY, name text NOT NULL, public boolean NOT NULL DEFAULT false, file_size_limit bigint, owner uuid, owner_id text, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now(), avif_autodetection boolean NOT NULL DEFAULT false);\nCREATE TABLE storage.objects (id bigserial PRIMARY KEY, bucket_id text NOT NULL REFERENCES storage.buckets(id), name text NOT NULL, UNIQUE(bucket_id,name));\nINSERT INTO storage.buckets (id,name,public,file_size_limit) VALUES ('kyc-documents','kyc-documents',false,10485760),('profile-avatars','profile-avatars',false,5242880),('wallet-receipts','wallet-receipts',false,10485760),('support-attachments','support-attachments',false,10485760);\n`;
 	const bootstrapped=await capture('docker',['exec','-i',containerName,'psql','-v','ON_ERROR_STOP=1','-U',databaseUser,'-d',databaseName],{input:storageBootstrap});
 	if(bootstrapped.code!==0)throw new Error(`Unable to initialize isolated Storage policy prerequisites: ${bootstrapped.stderr.slice(0,500)}`);
-	const migrated=await run('npx',['prisma','migrate','deploy'],{env:environment});
+	const migrated=await run(process.execPath,[prismaCli,'migrate','deploy'],{env:environment});
 	if(migrated!==0)throw new Error('Prisma migrations failed on the isolated E2E database.');
 	console.log('Running Playwright against a disposable loopback-only PostgreSQL database.');
 	await Promise.all(portReservations.map(releasePortReservation));

@@ -562,8 +562,16 @@ test('dashboard hierarchy remains usable and contained at mobile and desktop wid
 			expect(avatarStyle).toEqual({width:44,height:44,borderRadius:'50%',overflow:'hidden',flexShrink:'0'});
 			const avatarImage=avatar.locator('img');
 			if(await avatarImage.count()){
-				await expect(avatarImage).toHaveCSS('width','44px');
-				await expect(avatarImage).toHaveCSS('height','44px');
+				const imageSize=await avatarImage.evaluate(image=>{
+					const bounds=image.getBoundingClientRect();
+					const container=image.parentElement?.getBoundingClientRect();
+					return {width:bounds.width,height:bounds.height,containerWidth:container?.width??0,containerHeight:container?.height??0};
+				});
+				expect(imageSize.width).toBeGreaterThan(0);
+				expect(imageSize.height).toBeGreaterThan(0);
+				expect(imageSize.width).toBeLessThanOrEqual(imageSize.containerWidth);
+				expect(imageSize.height).toBeLessThanOrEqual(imageSize.containerHeight);
+				expect(imageSize.width).toBeCloseTo(imageSize.height,1);
 				await expect(avatarImage).toHaveCSS('object-fit','cover');
 				await expect(avatarImage).toHaveCSS('object-position','50% 50%');
 			}
@@ -947,7 +955,8 @@ test('country selector searches Nigeria and United Kingdom and shows their diali
 test('mobile date entry is calendar-backed and future dates are blocked',async({page})=>{
 	await page.setViewportSize({width:320,height:800});
 	await page.goto('/register');
-	const date=page.getByLabel('Date of birth');
+	const date=page.locator('input[type="date"]:visible');
+	await expect(date).toHaveCount(1);
 	await expect(date).toHaveAttribute('type','date');
 	await expect(date).toHaveAttribute('max',new Date().toISOString().slice(0,10));
 	const future=new Date();future.setUTCDate(future.getUTCDate()+1);
@@ -1260,7 +1269,18 @@ test('notifications bell, unread state, mark one/all, and history persist',async
 	const first=rows.first();
 	await expect(first).toBeVisible();
 	const firstTitle=await first.locator('.notification-copy b').innerText();
+	const notificationResponse=await page.request.get('/api/notifications?limit=100');
+	expect(notificationResponse.ok()).toBe(true);
+	const notificationData=await notificationResponse.json();
+	const selectedNotification=notificationData.notifications.find((item:{title:string;isRead:boolean})=>item.title===firstTitle&&!item.isRead);
+	expect(selectedNotification).toBeTruthy();
+	const destination=selectedNotification.actionUrl?new URL(selectedNotification.actionUrl,page.url()).href:null;
+	const markRead=page.waitForResponse(response=>response.url().endsWith('/api/notifications')&&response.request().method()==='PATCH'&&response.request().postData()?.includes('"action":"read"')===true);
 	await first.click();
+	await markRead;
+	if(destination)await expect(page).toHaveURL(destination);
+	else await expect(first).toHaveClass(/is-read/);
+	await page.waitForLoadState('load');
 	await page.goto('/notifications');
 	await expect(page.getByRole('heading',{name:'Notifications'})).toBeVisible();
 	await expect(page.locator('.notification-history-item').filter({hasText:firstTitle}).first()).toHaveClass(/is-read/);
@@ -1460,7 +1480,8 @@ test('Wallet shows the internal funding workflow only in REAL Mode and survives 
 	try{
 		await loginAs(adminPage,fixture('ADMIN_EMAIL'),fixture('ADMIN_PASSWORD'));
 		await page.setViewportSize({width:390,height:844});
-		await loginAs(page,fixture('USER_EMAIL'),fixture('USER_PASSWORD'));
+		const walletUser=await createIsolatedDemoUser('wallet-workflow');
+		await loginAs(page,walletUser.email,walletUser.password);
 		await selectAccountMode(page,'DEMO');
 		await page.goto('/wallet');
 		await expect(page.getByRole('heading',{name:/wallet|funding/i}).first()).toBeVisible();

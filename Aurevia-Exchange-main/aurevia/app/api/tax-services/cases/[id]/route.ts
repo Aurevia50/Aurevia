@@ -1,7 +1,7 @@
 import {NextResponse} from 'next/server';
 import {NotificationType,TaxCaseStatus} from '@prisma/client';
 import {z,ZodError} from 'zod';
-import {requireUser} from '@/lib/auth';
+import {authFailureStatus,requireUser} from '@/lib/auth';
 import {db} from '@/lib/db';
 import {createNotification,notifyActiveAdmins} from '@/lib/notifications';
 import {assertStatusTransition,canUserEditCase,sanitizeIntakeForStorage,userHasTaxAccess} from '@/lib/tax-services';
@@ -93,6 +93,8 @@ export async function PATCH(request:Request,{params}:Params){
 		});
 		return NextResponse.json(jsonSafe(updated),{headers:{'Cache-Control':'private, no-store'}});
 	}catch(error){
+		const authStatus=authFailureStatus(error);
+		if(authStatus)return NextResponse.json({error:authStatus===401?'Unauthorized':'Forbidden'},{status:authStatus});
 		if(error instanceof ZodError)return NextResponse.json({error:'Invalid update.'},{status:400});
 		if(error instanceof Error&&error.message==='INVALID_STATUS_TRANSITION')return NextResponse.json({error:'Invalid status transition.'},{status:409});
 		return NextResponse.json({error:'Unable to update tax case.'},{status:500});

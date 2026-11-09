@@ -1,6 +1,4 @@
 import {randomBytes} from 'node:crypto';
-import {tmpdir} from 'node:os';
-import {join} from 'node:path';
 import {defineConfig,devices} from '@playwright/test';
 import {loadEnvConfig} from '@next/env';
 
@@ -34,15 +32,25 @@ const providerPort=Number(process.env.AUREVIA_E2E_PROVIDER_PORT||4311);
 const baseURL=process.env.AUREVIA_E2E_APP_URL||`http://127.0.0.1:${appPort}`;
 const providerURL=process.env.AUREVIA_E2E_PROVIDER_URL||`http://127.0.0.1:${providerPort}`;
 const testSecret=randomBytes(32).toString('hex');
+const browserDevices={
+	chromium:devices['Desktop Chrome'],
+	firefox:devices['Desktop Firefox'],
+	webkit:devices['Desktop Safari'],
+};
+const requestedBrowsers=process.env.AUREVIA_E2E_BROWSER_PROJECT?.split(',')||
+	(process.env.AUREVIA_E2E_ALL_BROWSERS==='1'?Object.keys(browserDevices):['chromium']);
+const unknownBrowsers=requestedBrowsers.filter(name=>!(name in browserDevices));
+if(unknownBrowsers.length)throw new Error(`Unknown Playwright browser project: ${unknownBrowsers.join(', ')}.`);
+const projects=requestedBrowsers.map(name=>({name,use:{...browserDevices[name as keyof typeof browserDevices]}}));
 
 export default defineConfig({
 	testDir:'./tests/e2e',
-	testMatch:'**/*.spec.ts',
-	outputDir:join(tmpdir(),'aurevia-playwright-results'),
+	testMatch:process.env.AUREVIA_LIGHTHOUSE_AUDIT==='1'?'**/*.audit.ts':'**/*.spec.ts',
+	outputDir:'test-results',
 	fullyParallel:false,
 	workers:1, // Integration tests share mutable database fixtures and authentication sessions.
-	retries:0,
-	reporter:'list',
+	retries:process.env.CI?1:0,
+	reporter:[['list'],['html',{outputFolder:'playwright-report',open:'never'}]],
 	timeout:90000,
 	expect:{timeout:10000},
 	globalSetup:'./tests/e2e/global-setup.ts',
@@ -53,12 +61,12 @@ export default defineConfig({
 		viewport:{width:1440,height:900},
 		reducedMotion:'reduce',
 		headless:true,
-		trace:'off',
+		trace:'retain-on-failure',
 		screenshot:'only-on-failure',
 		actionTimeout:15000,
 		navigationTimeout:45000,
 	},
-	projects:[{name:'chromium',use:{...devices['Desktop Chrome']}}],
+	projects,
 	webServer:[
 		{
 			command:'node tests/e2e/mock-provider.mjs',
@@ -79,6 +87,8 @@ export default defineConfig({
 				NODE_ENV:'production',
 				NEXTAUTH_URL:baseURL,
 				NEXT_PUBLIC_APP_URL:baseURL,
+				RENDER_EXTERNAL_URL:'',
+				AUREVIA_CUSTOM_DOMAIN_VERIFIED:'false',
 				NEXTAUTH_SECRET:testSecret,
 				VERIFICATION_CODE_SECRET:testSecret,
 				RESEND_API_KEY:'',
