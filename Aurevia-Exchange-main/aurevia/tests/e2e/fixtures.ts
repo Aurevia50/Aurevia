@@ -85,7 +85,10 @@ export async function loginAs(page:Page,email:string,password:string){
 			await expect(replaceSession).toBeChecked();
 		}
 		await passwordInput.press('Enter');
-		await expect(page).toHaveURL(administrator?/\/admin(?:$|\/)/:/dashboard/,{timeout:30000});
+		await expect.poll(()=>{
+			const pathname=new URL(page.url()).pathname;
+			return administrator?pathname==='/admin'||pathname.startsWith('/admin/')&&!pathname.startsWith('/admin/login'):pathname.startsWith('/dashboard');
+		},{timeout:30000}).toBe(true);
 		await page.waitForLoadState('load');
 		await expect.poll(async()=>{
 			const response=await page.request.get('/api/auth/session');

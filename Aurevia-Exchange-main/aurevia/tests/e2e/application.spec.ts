@@ -2393,7 +2393,8 @@ for(const viewport of viewports){
 			for(const route of adminRoutes){
 				await test.step(`${route} in ${theme}`,async()=>{
 					const path=concreteRoutePath(route);
-					const response=await page.goto(path);
+					const currentUrl=new URL(page.url());
+					const response=currentUrl.pathname===path?await page.request.get(path):await page.goto(path);
 					expect(response?.status(),route).toBe(200);
 					await expect(page.locator('html'),`${route} (${theme})`).toHaveAttribute('data-theme-name',theme);
 					await expect(page.locator('main').first(),route).toBeVisible();
