@@ -3,6 +3,7 @@ import {AccountMode,FundingType,Prisma,UserStatus} from '@prisma/client';
 import {z,ZodError} from 'zod';
 import {getServerSession} from 'next-auth';
 import {authOptions} from '@/lib/auth-options';
+import {assertCurrentTermsAccepted} from '@/lib/auth';
 import {db} from '@/lib/db';
 import {balance,reservedWithdrawalAmount} from '@/lib/ledger';
 import {getAccountTier} from '@/lib/production-policy';
@@ -44,6 +45,7 @@ export async function POST(request:Request){
 		const input=schema.parse(await request.json());
 		const session=await getServerSession(authOptions);
 		const userId=session?.user?.id;
+		if(userId)await assertCurrentTermsAccepted(userId);
 		rateLimit(userId?`nova-user:${userId}`:`nova-ip:${clientIp(request)}`,30,60_000);
 		const user=userId?await db.user.findUnique({where:{id:userId},select:{id:true,role:true,status:true,accountMode:true,approvedTier:true,kycStatus:true,name:true,country:true,phone:true,phoneVerified:true,kyc:{select:{submittedAt:true}},kycDocuments:{where:{kind:'IDENTITY_DOCUMENT',status:'APPROVED'},select:{id:true}}}}):null;
 		if(userId&&(!user||user.status!==UserStatus.ACTIVE||user.role!=='USER'))return NextResponse.json({error:'This account is unavailable.'},{status:403});
@@ -233,6 +235,7 @@ export async function POST(request:Request){
 		if(error instanceof ZodError)return NextResponse.json({error:'Ask a question of at most 800 characters.'},{status:400});
 		if(error instanceof Error&&error.message==='RATE_LIMITED')return NextResponse.json({error:'Nova requests are temporarily rate limited. Try again shortly.'},{status:429});
 		if(error instanceof Error&&error.message==='UNAUTHORIZED')return NextResponse.json({error:'Sign in to ask account-specific questions.'},{status:401});
+		if(error instanceof Error&&error.message==='FORBIDDEN')return NextResponse.json({error:'Accept the current Terms & Conditions before continuing.'},{status:403});
 		console.error('Nova request failed.');
 		return NextResponse.json({error:'Nova is temporarily unavailable.'},{status:503,headers:{'Cache-Control':'private, no-store'}});
 	}

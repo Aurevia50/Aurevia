@@ -52,25 +52,18 @@ export {expect};
 
 export async function waitForStartup(page:Page){
 	const startupScreen=page.locator('.startup-screen');
-	const policyConsent=page.locator('.policy-consent-dialog');
 	await page.waitForFunction(()=>{
-		const consentDialog=document.querySelector<HTMLDialogElement>('.policy-consent-dialog');
 		const content=document.querySelector('.scene-content > div');
-		return consentDialog?.open===true||(
-			localStorage.getItem('aurevia-policy-consent-v1')!==null&&
-			(document.querySelector('.intro-skip')!==null||content?.getAttribute('aria-hidden')==='false')
-		);
+		return !document.querySelector('.startup-screen')&&content?.getAttribute('aria-hidden')==='false';
 	});
-	if(await policyConsent.isVisible())await policyConsent.getByRole('button',{name:/^Accept terms/}).click();
 	await expect(startupScreen).toHaveCount(0);
 	await expect(page.locator('.scene-content > div[inert]')).toHaveCount(0);
 }
 
-export async function loginAs(page:Page,email:string,password:string){
+export async function loginAs(page:Page,email:string,password:string,options:{acceptTerms?:boolean}={}){
 	const loginIp=isolatedLoginIp();
 	const addIsolatedLoginIp=(route:import('@playwright/test').Route)=>route.continue({headers:{...route.request().headers(),'x-forwarded-for':loginIp}});
 	const administrator=email.toLowerCase()===process.env.AUREVIA_E2E_ADMIN_EMAIL?.toLowerCase();
-	await page.addInitScript(()=>localStorage.setItem('aurevia-policy-consent-v1',JSON.stringify({version:1,choice:'accepted',updatedAt:new Date().toISOString()})));
 	await page.route(credentialCallback,addIsolatedLoginIp);
 	try{
 		await page.goto(administrator?'/admin/login':'/login');
@@ -96,6 +89,18 @@ export async function loginAs(page:Page,email:string,password:string){
 			const session=await response.json();
 			return typeof session.user?.email==='string'?session.user.email.toLowerCase():null;
 		}).toBe(email.toLowerCase());
+		if(options.acceptTerms!==false){
+			const consent=await page.request.get('/api/policy-consent');
+			if(!consent.ok())throw new Error(`Unable to load current terms acceptance status: ${consent.status()}`);
+			const current=await consent.json() as {accepted:boolean};
+			if(!current.accepted){
+				const dialog=page.locator('.policy-consent-dialog');
+				await expect(dialog).toBeVisible();
+				await dialog.getByRole('checkbox').check();
+				await dialog.getByRole('button',{name:'Accept & Continue'}).click();
+				await expect(dialog).toBeHidden();
+			}
+		}
 	}finally{
 		await page.unroute(credentialCallback,addIsolatedLoginIp);
 	}
@@ -136,9 +141,6 @@ export async function expectNoHorizontalOverflow(page:Page){
 }
 
 test.beforeEach(async({page},testInfo)=>{
-	if(!testInfo.title.includes('first-visit policy consent')){
-		await page.addInitScript(()=>localStorage.setItem('aurevia-policy-consent-v1',JSON.stringify({version:1,choice:'accepted',updatedAt:new Date().toISOString()})));
-	}
 	const testClientIp=`198.51.100.${randomInt(1,255)}`;
 	await page.route('**/api/auth/callback/credentials**',route=>route.continue({headers:{...route.request().headers(),'x-forwarded-for':testClientIp}}));
 	await page.route('**/api/demo/ai-recommendations',route=>route.fulfill({
@@ -209,7 +211,8 @@ test.afterEach(async({page},testInfo)=>{
 		return !(target&&consumeCancelledTarget(cancelledPageErrors,target));
 	});
 	const expectedFallbackResponse=testInfo.title.includes('public routes render without horizontal overflow')?capture.failedResponses.filter(response=>fallbackRoutes.some(route=>new URL(response.url).pathname===route)&&response.status===404):[];
-	const expectedClientErrors=[...expectedFallbackResponse,...capture.failedResponses.filter(response=>(testInfo.title.includes('duplicate signup offers sign-in')&&response.url.endsWith('/api/register')&&response.status===409)||(testInfo.title.includes('registration fails closed when Akedly credentials are unavailable')&&response.url.endsWith('/api/register')&&response.status===503)||(response.url.endsWith('/api/auth/callback/credentials')&&response.status===401)||(testInfo.title.includes('TOTP enrollment')&&response.url.endsWith('/api/security/totp')&&response.status===400)||((testInfo.title.includes('watchlists persist')||testInfo.title.includes('session replacement is explicit')||testInfo.title.includes('Nova escalation reaches admin')||testInfo.title.includes('tier requests require')||testInfo.title.includes('account deletion'))&&response.url.endsWith('/api/notifications?limit=8')&&response.status===401)||(testInfo.title.includes('account deletion')&&((['/api/currency-preference','/api/positions','/api/tax-services/access','/api/profile','/api/profile/avatar'].some(path=>response.url.endsWith(path))&&response.status===401)||(response.url.endsWith('/api/dashboard/overview')&&response.status===403)))|| (testInfo.title.includes('Nova escalation reaches admin')&&response.url.endsWith('/api/support')&&response.status===409)||((testInfo.title.includes('Account Funding')||testInfo.title.includes('Wallet shows the internal funding workflow'))&&(response.url.endsWith('/api/payment-methods')||response.url.endsWith('/api/wallet'))&&response.status===503)||(response.url.includes('/api/live-markets/')&&response.status===503&&!marketProviderConfigured)||(testInfo.title.includes('KYC access is owner-scoped')&&response.url.endsWith('/api/kyc/documents')&&response.status===409))];
+	const expectedClientErrors=[...expectedFallbackResponse,...capture.failedResponses.filter(response=>(testInfo.title.includes('current terms acceptance')&&response.url.endsWith('/api/policy-consent')&&response.status===503)||(testInfo.title.includes('duplicate signup offers sign-in')&&response.url.endsWith('/api/register')&&response.status===409)||(testInfo.title.includes('registration fails closed when Akedly credentials are unavailable')&&response.url.endsWith('/api/register')&&response.status===503)||(response.url.endsWith('/api/auth/callback/credentials')&&response.status===401)||(testInfo.title.includes('TOTP enrollment')&&response.url.endsWith('/api/security/totp')&&response.status===400)||((testInfo.title.includes('watchlists persist')||testInfo.title.includes('session replacement is explicit')||testInfo.title.includes('Nova escalation reaches admin')||testInfo.title.includes('tier requests require')||testInfo.title.includes('account deletion'))&&response.url.endsWith('/api/notifications?limit=8')&&response.status===401)||(testInfo.title.includes('account deletion')&&((['/api/currency-preference','/api/positions','/api/tax-services/access','/api/profile','/api/profile/avatar'].some(path=>response.url.endsWith(path))&&response.status===401)||(response.url.endsWith('/api/dashboard/overview')&&response.status===403)))|| (testInfo.title.includes('Nova escalation reaches admin')&&response.url.endsWith('/api/support')&&response.status===409)||((testInfo.title.includes('Account Funding')||testInfo.title.includes('Wallet shows the internal funding workflow'))&&(response.url.endsWith('/api/payment-methods')||response.url.endsWith('/api/wallet'))&&response.status===503)||(response.url.includes('/api/live-markets/')&&response.status===503&&!marketProviderConfigured)||(testInfo.title.includes('KYC access is owner-scoped')&&response.url.endsWith('/api/kyc/documents')&&response.status===409))];
+	const expectedTermsDenials=testInfo.title.includes('current terms acceptance')?capture.failedResponses.filter(response=>response.url.endsWith('/api/theme-preference')&&response.status===403):[];
 	if(testInfo.title.includes('support fallback'))expectedClientErrors.push(...capture.failedResponses.filter(response=>response.url.endsWith('/api/support/nova')&&response.status===503));
 	if(testInfo.title.includes('account deletion'))expectedClientErrors.push(...capture.failedResponses.filter(response=>(response.url.endsWith('/api/profile')&&response.status===403)||(response.url.endsWith('/api/dashboard/overview')&&[401,403].includes(response.status))));
 	if(testInfo.title.includes('account deletion'))expectedClientErrors.push(...capture.failedResponses.filter(response=>response.url.endsWith('/api/notifications?limit=100')&&response.status===401));
@@ -217,7 +220,7 @@ test.afterEach(async({page},testInfo)=>{
 		const route=new URL(response.url).pathname;
 		return route==='/api/cards/theme-id'&&response.status===404||route==='/api/funding/theme-id'&&response.status===404||route==='/api/tax-services/cases/theme-id'&&response.status===403;
 	}):[];
-	const unexpectedResponses=capture.failedResponses.filter(response=>!expectedClientErrors.includes(response)&&!expectedSyntheticRouteFailures.includes(response));
+	const unexpectedResponses=capture.failedResponses.filter(response=>!expectedClientErrors.includes(response)&&!expectedSyntheticRouteFailures.includes(response)&&!expectedTermsDenials.includes(response));
 	const accountClosureAccessDenied=testInfo.title.includes('account deletion')&&capture.failedResponses.some(response=>(response.url.endsWith('/api/profile')&&[401,403].includes(response.status))||(response.url.endsWith('/api/dashboard/overview')&&[401,403].includes(response.status)));
 	const accountClosureProfileDenied=testInfo.title.includes('account deletion')&&capture.failedResponses.some(response=>response.url.endsWith('/api/profile')&&[401,403].includes(response.status));
 	let remainingExpectedFallbackErrors=expectedFallbackResponse.length;
@@ -225,9 +228,19 @@ test.afterEach(async({page},testInfo)=>{
 	let remainingSyntheticForbiddenErrors=expectedSyntheticRouteFailures.filter(response=>response.status===403).length;
 	const cancelledConsoleErrors=new Map(cancelledTargets);
 	const appHost=new URL(appOrigin).host;
+	let remainingTermsForbiddenErrors=expectedTermsDenials.length;
+	let remainingExpectedThemeErrors=expectedTermsDenials.length;
 	const unexpectedConsoleErrors=capture.consoleErrors.filter(message=>{
 		const cancelledTarget=cancelledFetchConsoleTarget(message);
 		if(cancelledTarget&&consumeCancelledTarget(cancelledConsoleErrors,`${appHost}${cancelledTarget}`))return false;
+		if(message==='Account theme preference could not be loaded. Error'&&remainingExpectedThemeErrors>0){
+			remainingExpectedThemeErrors--;
+			return false;
+		}
+		if(message==='Failed to load resource: the server responded with a status of 403 (Forbidden)'&&remainingTermsForbiddenErrors>0){
+			remainingTermsForbiddenErrors--;
+			return false;
+		}
 		if(message==='Failed to load resource: the server responded with a status of 404 (Not Found)'&&remainingExpectedFallbackErrors>0){
 			remainingExpectedFallbackErrors--;
 			return false;

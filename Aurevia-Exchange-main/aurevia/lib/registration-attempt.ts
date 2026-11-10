@@ -1,6 +1,9 @@
 import {AccountMode,GenderSelection,Prisma} from '@prisma/client';
 import {generateAureviaExchangeId} from '@/lib/aurevia-exchange-id';
 import {initializePaperAccount} from '@/lib/ledger';
+import {CURRENT_TERMS_VERSION} from '@/lib/policy-consent';
+import {currentMandatoryTermsWhere} from '@/lib/managed-notice-policy';
+import {deliverPublishedNoticesToUser} from '@/lib/managed-notice-delivery';
 
 export type ImmediateRegistrationInput={
 	email:string;
@@ -58,6 +61,17 @@ export async function createImmediateRegistration(
 	if(!userCreated)throw new Error('AUREVIA_ID_COLLISION_RETRIES_EXHAUSTED');
 
 	const user=await tx.user.findUniqueOrThrow({where:{email:input.email}});
+	const currentTerms=await tx.managedNotice.findFirst({
+		where:currentMandatoryTermsWhere(now),
+		select:{version:true},
+		orderBy:[{publishedAt:'desc'},{createdAt:'desc'}],
+	});
+	await tx.termsAcceptance.create({data:{
+		userId:user.id,
+		version:currentTerms?.version||CURRENT_TERMS_VERSION,
+		acceptedAt:input.termsAcceptedAt,
+	}});
+	await deliverPublishedNoticesToUser(tx,user.id,now);
 	await tx.kycProfile.upsert({
 		where:{userId:user.id},
 		update:{dob:input.dateOfBirth},

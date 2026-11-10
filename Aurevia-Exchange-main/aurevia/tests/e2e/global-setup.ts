@@ -6,6 +6,8 @@ import {loadEnvConfig} from '@next/env';
 import {AccountMode,PrismaClient,Role,UserStatus,NotificationType,FundingStatus,FundingType,KycStatus} from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import {initializePaperAccount} from '../../lib/ledger';
+import {CURRENT_TERMS_VERSION} from '../../lib/policy-consent';
+import {currentMandatoryTermsWhere} from '../../lib/managed-notice-policy';
 
 export default async function globalSetup(){
 	const configuredE2eDatabaseUrl=process.env.AUREVIA_E2E_DATABASE_URL;
@@ -81,6 +83,13 @@ export default async function globalSetup(){
 		await db.user.create({data:{id:legacyUserId,email:legacyUserEmail,name:'Legacy E2E User',country:'Test',passwordHash:await bcrypt.hash(legacyUserPassword,10),accountMode:AccountMode.DEMO,status:UserStatus.ACTIVE}});
 				await db.user.create({data:{id:investorId,email:investorEmail,name:'Investment E2E User',country:'Test',passwordHash:await bcrypt.hash(investorPassword,10),accountMode:AccountMode.DEMO,status:UserStatus.ACTIVE,kycStatus:KycStatus.APPROVED,verifiedAt:new Date()}});
 				await db.user.create({data:{id:deletionUserId,email:deletionEmail,name:'Temporary Deletion User',country:'Test',passwordHash:await bcrypt.hash(deletionPassword,10),accountMode:AccountMode.DEMO,status:UserStatus.ACTIVE}});
+		const currentTerms=await db.managedNotice.findFirst({
+			where:currentMandatoryTermsWhere(),
+			select:{version:true},
+			orderBy:[{publishedAt:'desc'},{createdAt:'desc'}],
+		});
+		const currentTermsVersion=currentTerms?.version||CURRENT_TERMS_VERSION;
+		await db.termsAcceptance.createMany({data:[userId,adminId,legacyUserId,investorId,deletionUserId].map(id=>({userId:id,version:currentTermsVersion}))});
 		const instruments=await Promise.all([...symbols,cryptoSymbol].map((symbol,index)=>db.instrument.create({data:{symbol,name:index===2?'E2E simulated Bitcoin':`E2E simulated instrument ${index+1}`,baseAsset:index===2?'BTC':`E2E${index+1}`,quoteAsset:'USD',price:index===0?10:index===1?20:65000,enabled:true}})));
 		instrumentIds.push(...instruments.map(instrument=>instrument.id));
 		const btcUsd=await db.instrument.upsert({where:{symbol:'BTC/USD'},update:{},create:{symbol:'BTC/USD',name:'E2E simulated BTC/USD',baseAsset:'BTC',quoteAsset:'USD',price:92500,enabled:true}});
@@ -137,6 +146,7 @@ export async function cleanup(db:PrismaClient,state:{userId:string;adminId:strin
 		await db.ledgerEntry.deleteMany({where:{accountId:{in:accountIds}}});
 		await db.ledgerAccount.deleteMany({where:{id:{in:accountIds}}});
 	}
+	await db.termsAcceptance.deleteMany({where:{userId:{in:userIds}}});
 	await db.user.deleteMany({where:{id:{in:userIds}}});
 	if(state.instrumentIds.length)await db.instrument.deleteMany({where:{id:{in:state.instrumentIds}}});
 	if(state.paymentMethodId)await db.paymentMethod.deleteMany({where:{id:state.paymentMethodId}});

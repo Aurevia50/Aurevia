@@ -2,7 +2,7 @@
 
 import {useCallback,useEffect,useState} from 'react';
 import {useRouter} from 'next/navigation';
-import {Activity,Archive,Bell,Check,CheckCheck,CircleDollarSign,Info,LifeBuoy,RefreshCw,Search,ShieldCheck,Trash2,Undo2,UserRound,WalletCards} from 'lucide-react';
+import {Activity,Archive,Bell,Check,CheckCheck,CircleDollarSign,Info,LifeBuoy,Megaphone,RefreshCw,Search,ShieldCheck,Trash2,Undo2,UserRound,WalletCards} from 'lucide-react';
 import Nav from '@/components/Nav';
 import AureviaLoading from '@/components/AureviaLoading';
 import {relativeTime} from '@/components/NotificationBell';
@@ -11,7 +11,7 @@ import {useLocale} from '@/lib/i18n-context';
 type NotificationItem={id:string;type:string;title:string;message:string;isRead:boolean;archivedAt:string|null;canDelete:boolean;createdAt:string;relatedEntity:string|null;relatedId:string|null;actionUrl:string|null};
 type NotificationResponse={notifications:NotificationItem[];unreadCount:number};
 type NotificationAction={action:'read';id:string}|{action:'read-all'}|{action:'archive'|'restore';id:string};
-const iconByType:Record<string,typeof Bell>={ACCOUNT:UserRound,SECURITY:ShieldCheck,KYC:ShieldCheck,DEPOSIT:CircleDollarSign,WITHDRAWAL:WalletCards,TRADE:Activity,MARKET:Activity,SUPPORT:LifeBuoy,SYSTEM:Info};
+const iconByType:Record<string,typeof Bell>={ACCOUNT:UserRound,SECURITY:ShieldCheck,KYC:ShieldCheck,DEPOSIT:CircleDollarSign,WITHDRAWAL:WalletCards,TRADE:Activity,MARKET:Activity,SUPPORT:LifeBuoy,SYSTEM:Info,ANNOUNCEMENT:Megaphone};
 const notificationCategories=[
 	{label:'All activity',types:[] as string[]},
 	{label:'Account',types:['ACCOUNT']},
@@ -19,6 +19,7 @@ const notificationCategories=[
 	{label:'Wallet',types:['DEPOSIT','WITHDRAWAL']},
 	{label:'Markets',types:['TRADE','MARKET']},
 	{label:'Support',types:['SUPPORT']},
+	{label:'Announcements',types:['ANNOUNCEMENT']},
 	{label:'System',types:['SYSTEM']},
 ];
 

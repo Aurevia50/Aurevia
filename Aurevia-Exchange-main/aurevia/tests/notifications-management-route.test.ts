@@ -3,6 +3,7 @@ import {beforeEach,describe,expect,it,vi} from 'vitest';
 const mocks=vi.hoisted(()=>({
 	requireUser:vi.fn(),
 	userFindUnique:vi.fn(),
+	managedNoticeFindMany:vi.fn(),
 	notificationFindMany:vi.fn(),
 	notificationFindFirst:vi.fn(),
 	notificationUpdateMany:vi.fn(),
@@ -14,6 +15,7 @@ const mocks=vi.hoisted(()=>({
 vi.mock('@/lib/auth',()=>({requireUser:mocks.requireUser}));
 vi.mock('@/lib/db',()=>({db:{
 	user:{findUnique:mocks.userFindUnique},
+	managedNotice:{findMany:mocks.managedNoticeFindMany},
 	notification:{findMany:mocks.notificationFindMany,findFirst:mocks.notificationFindFirst,updateMany:mocks.notificationUpdateMany,deleteMany:mocks.notificationDeleteMany,count:mocks.notificationCount},
 	activityVisibilityPreference:{deleteMany:mocks.visibilityDeleteMany},
 	$transaction:mocks.transaction,
@@ -27,6 +29,7 @@ beforeEach(()=>{
 	vi.clearAllMocks();
 	mocks.requireUser.mockResolvedValue({id:'owner-1'});
 	mocks.userFindUnique.mockResolvedValue({accountMode:'DEMO',status:'ACTIVE'});
+	mocks.managedNoticeFindMany.mockResolvedValue([]);
 	mocks.notificationFindMany.mockResolvedValue([{id:'notice-1',title:'Account update',message:'An update is available.',isRead:false,pushOutbox:[]}]);
 	mocks.notificationFindFirst.mockResolvedValue(null);
 	mocks.notificationUpdateMany.mockResolvedValue({count:1});
@@ -48,6 +51,27 @@ describe('notification retention controls',()=>{
 		expect(mocks.notificationFindMany).toHaveBeenCalledWith(expect.objectContaining({
 			where:expect.objectContaining({userId:'owner-1',OR:[{accountMode:'REAL'},{accountMode:null}]}),
 		}));
+	});
+
+	it('limits inbox visibility to currently published user-visible notices',async()=>{
+		mocks.managedNoticeFindMany.mockResolvedValueOnce([{
+			id:'public-notice',title:'Service update',content:'A service update is available.',
+			publishedAt:new Date('2026-11-10T12:00:00.000Z'),
+		}]);
+		const response=await GET(new Request('https://aurevia.test/api/notifications?limit=8'));
+		expect(response.status).toBe(200);
+		expect(mocks.managedNoticeFindMany).toHaveBeenCalledWith(expect.objectContaining({
+			where:expect.objectContaining({
+				type:'ANNOUNCEMENT',status:'PUBLISHED',enabled:true,
+				visibility:{in:['USERS','SYSTEM_CRITICAL']},
+			}),
+		}));
+		const inboxQuery=mocks.notificationFindMany.mock.calls[0]?.[0];
+		expect(inboxQuery?.where.AND).toContainEqual({OR:[
+			{relatedEntity:null},
+			{relatedEntity:{not:'MANAGED_NOTICE'}},
+			{relatedEntity:'MANAGED_NOTICE',relatedId:{in:['public-notice:2026-11-10T12:00:00.000Z']}},
+		]});
 	});
 
 	it('archives a notification only when it belongs to the authenticated user',async()=>{

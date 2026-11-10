@@ -13,14 +13,14 @@ describe('administrator and customer session boundaries',()=>{
 	it('allows a customer session only through the customer guard',async()=>{
 		const customer={id:'customer-1',role:'USER',sessionHash:'a'.repeat(64)};
 		mocks.getServerSession.mockResolvedValue({user:customer});
-		await expect(requireUser()).resolves.toMatchObject(customer);
+		await expect(requireUser({skipTermsAcceptance:true})).resolves.toMatchObject(customer);
 		await expect(requireAdmin()).rejects.toThrow('FORBIDDEN');
 	});
 
 	it('allows an administrator session only through the administrator guard',async()=>{
 		const admin={id:'admin-1',role:'ADMIN',sessionHash:'b'.repeat(64)};
 		mocks.getServerSession.mockResolvedValue({user:admin});
-		await expect(requireAdmin()).resolves.toMatchObject(admin);
+		await expect(requireAdmin({skipTermsAcceptance:true})).resolves.toMatchObject(admin);
 		await expect(requireUser()).rejects.toThrow('FORBIDDEN');
 	});
 

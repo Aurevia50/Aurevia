@@ -142,7 +142,6 @@ test('homepage hero actions remain usable with reduced motion',async({browser,pa
 
 	const nextSession=await browser.newContext({viewport:{width:1280,height:900},reducedMotion:'reduce'});
 	try{
-		await nextSession.addInitScript(()=>localStorage.setItem('aurevia-policy-consent-v1',JSON.stringify({version:1,choice:'accepted',updatedAt:new Date().toISOString()})));
 		const nextPage=await nextSession.newPage();
 		await nextPage.goto('/');
 		await waitForStartup(nextPage);
@@ -162,25 +161,13 @@ test('homepage uses a static 3D fallback on narrow mobile screens',async({page})
 	await expectNoHorizontalOverflow(page);
 });
 
-test('first-visit policy consent handles choices and unlocks the platform',async({page})=>{
-	await page.goto('/');
-	const dialog=page.getByRole('dialog',{name:'Review before continuing'});
-	await expect(dialog).toBeVisible();
-	await expect(dialog).toContainText('DEMO is for practice');
-	await dialog.getByRole('button',{name:'Cancel'}).click();
-	await expect(page.getByRole('dialog',{name:'Choice deferred'})).toBeVisible();
-	expect(await page.evaluate(()=>localStorage.getItem('aurevia-policy-consent-v1'))).toBeNull();
-	await page.getByRole('button',{name:'Return to choices'}).click();
-	await page.getByRole('dialog',{name:'Review before continuing'}).getByRole('button',{name:'Reject'}).click();
-	await expect(page.getByRole('dialog',{name:'Access paused'})).toBeVisible();
-	expect(JSON.parse(await page.evaluate(()=>localStorage.getItem('aurevia-policy-consent-v1')||'null'))).toMatchObject({version:1,choice:'rejected'});
-	await page.getByRole('button',{name:'Accept terms & continue'}).click();
-	await expect(page.getByRole('dialog')).toBeHidden();
-	await expect(page.locator('.home-hero h1').first()).toBeVisible();
-	expect(JSON.parse(await page.evaluate(()=>localStorage.getItem('aurevia-policy-consent-v1')||'null'))).toMatchObject({version:1,choice:'accepted'});
-	await page.reload();
-	await expect(page.getByRole('dialog')).toHaveCount(0);
-	await expect(page.locator('.home-hero h1').first()).toBeVisible();
+test('terms and privacy policies remain readable to signed-out visitors',async({page})=>{
+	await page.goto('/terms');
+	await expect(page.getByRole('heading',{name:'Terms of use'})).toBeVisible();
+	await expect(page.locator('.policy-consent-dialog')).toBeHidden();
+	await page.goto('/privacy');
+	await expect(page.getByRole('heading',{name:'Privacy overview'})).toBeVisible();
+	await expect(page.locator('.policy-consent-dialog')).toBeHidden();
 });
 
 test('homepage labels internal reference prices as non-live market data',async({page})=>{

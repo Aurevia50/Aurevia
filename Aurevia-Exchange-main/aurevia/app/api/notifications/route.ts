@@ -1,4 +1,5 @@
 import {NextResponse} from 'next/server';
+import {ManagedNoticeStatus,ManagedNoticeType,NoticeVisibility} from '@prisma/client';
 import {z,ZodError} from 'zod';
 import {requireUser} from '@/lib/auth';
 import {db} from '@/lib/db';
@@ -21,7 +22,29 @@ export async function GET(req:Request){
 		const params=new URL(req.url).searchParams;
 		const limit=Math.min(Math.max(Number(params.get('limit')||30),1),100);
 		const archived=params.get('state')==='archived';
-		const modeWhere={userId:user.id,OR:[{accountMode:account.accountMode},{accountMode:null}]};
+		const now=new Date();
+		const activeNotices=await db.managedNotice.findMany({
+			where:{
+				type:ManagedNoticeType.ANNOUNCEMENT,
+				status:ManagedNoticeStatus.PUBLISHED,
+				enabled:true,
+				visibility:{in:[NoticeVisibility.USERS,NoticeVisibility.SYSTEM_CRITICAL]},
+				OR:[{startsAt:null},{startsAt:{lte:now}}],
+				AND:[{OR:[{endsAt:null},{endsAt:{gt:now}}]}],
+			},
+			select:{id:true,title:true,content:true,publishedAt:true},
+			orderBy:{publishedAt:'desc'},
+			take:100,
+		});
+		const activeNoticeRefs=activeNotices.flatMap(notice=>notice.publishedAt?[`${notice.id}:${notice.publishedAt.toISOString()}`]:[]);
+		const visibleManagedNoticeFilter={
+			OR:[
+				{relatedEntity:null},
+				{relatedEntity:{not:'MANAGED_NOTICE'}},
+				...(activeNoticeRefs.length?[{relatedEntity:'MANAGED_NOTICE',relatedId:{in:activeNoticeRefs}}]:[]),
+			],
+		};
+		const modeWhere={userId:user.id,OR:[{accountMode:account.accountMode},{accountMode:null}],AND:[visibleManagedNoticeFilter]};
 		const [notifications,unreadCount,latestUnread]=await Promise.all([
 			db.notification.findMany({where:{...modeWhere,archivedAt:archived?{not:null}:null},include:{pushOutbox:{select:{id:true}}},orderBy:{createdAt:'desc'},take:limit}),
 			db.notification.count({where:{...modeWhere,isRead:false}}),

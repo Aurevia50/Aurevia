@@ -1,7 +1,7 @@
 import {createHash,randomInt,randomUUID} from 'node:crypto';
 import type {Page} from '@playwright/test';
 import bcrypt from 'bcryptjs';
-import {FundingStatus,FundingType,Prisma} from '@prisma/client';
+import {FundingStatus,FundingType,ManagedNoticeStatus,ManagedNoticeType,NoticeVisibility,Prisma} from '@prisma/client';
 import {PNG} from 'pngjs';
 import {generate,generateSecret} from 'otplib';
 import {test,expect,loginAs,logout,waitForStartup,expectNoHorizontalOverflow} from './fixtures';
@@ -10,6 +10,8 @@ import {balance as ledgerBalance,initializeDemoAccount,initializePaperAccount,po
 import {deleteAccountData} from '../../lib/account-deletion';
 import {settleMaturedSimulatedInvestments} from '../../lib/demo-investment-settlement';
 import {SIMULATED_BTC_ADDRESS_SETTING} from '../../lib/config/simulated-bitcoin-address';
+import {CURRENT_TERMS_VERSION} from '../../lib/policy-consent';
+import {currentMandatoryTermsWhere} from '../../lib/managed-notice-policy';
 import {adminRoutes,authenticatedRoutes,concreteRoutePath,themes} from './theme-route-inventory';
 
 const viewports=[
@@ -48,7 +50,7 @@ function fixture(name:string){
 	return value;
 }
 
-async function createIsolatedDemoUser(label:string){
+async function createIsolatedDemoUser(label:string,options:{acceptTerms?:boolean}={}){
 	const password=`E2e-${randomUUID()}-A1!`;
 	const user=await db.user.create({data:{
 		email:`aurevia-e2e-${label}-${randomUUID()}@example.invalid`,
@@ -60,6 +62,14 @@ async function createIsolatedDemoUser(label:string){
 	}});
 	await db.$transaction(tx=>initializeDemoAccount(tx,user.id));
 	return {email:user.email,password};
+	if(options.acceptTerms!==false){
+		const currentTerms=await db.managedNotice.findFirst({
+			where:currentMandatoryTermsWhere(),
+			select:{version:true},
+			orderBy:[{publishedAt:'desc'},{createdAt:'desc'}],
+		});
+		await db.termsAcceptance.create({data:{userId:user.id,version:currentTerms?.version||CURRENT_TERMS_VERSION}});
+	}
 }
 
 function depositPostOptions(idempotencyKey:string,payload:Record<string,unknown>){
@@ -67,6 +77,108 @@ function depositPostOptions(idempotencyKey:string,payload:Record<string,unknown>
 }
 
 async function typeInto(page:import('@playwright/test').Page,field:import('@playwright/test').Locator,value:string){
+test('current terms acceptance is explicit and persists across refresh, login, and devices',async({browser,page})=>{
+	const user=await createIsolatedDemoUser('terms-first-visit',{acceptTerms:false});
+	await page.setViewportSize({width:320,height:800});
+	await loginAs(page,user.email,user.password,{acceptTerms:false});
+	expect((await page.request.get('/api/dashboard/overview')).status()).toBe(403);
+	for(const path of ['/api/support','/api/tax-services/access'])expect((await page.request.get(path)).status()).toBe(403);
+	expect((await page.request.get('/api/theme-preference')).status()).toBe(403);
+	const dialog=page.getByRole('dialog',{name:'Terms & Conditions'});
+	const currentVersion=await page.request.get('/api/policy-consent').then(response=>response.json()).then(result=>result.version as string);
+	await expect(dialog).toBeVisible();
+	await expect(dialog).toContainText('Please review and accept Aurevia’s Terms & Conditions before continuing.');
+	await expect(dialog.getByRole('link',{name:'Read the complete Terms & Conditions'})).toHaveAttribute('href','/terms');
+	await expect(dialog.getByRole('link',{name:'Privacy Policy'})).toHaveAttribute('href','/privacy');
+	await expect(dialog.getByRole('checkbox')).not.toBeChecked();
+	const acceptButton=dialog.getByRole('button',{name:'Accept & Continue'});
+	await expect(acceptButton).toBeDisabled();
+	const mobileBox=await dialog.boundingBox();
+	expect(mobileBox).not.toBeNull();
+	expect(mobileBox!.x).toBeGreaterThanOrEqual(0);
+	expect(mobileBox!.x+mobileBox!.width).toBeLessThanOrEqual(320);
+	await expectNoHorizontalOverflow(page);
+	await page.setViewportSize({width:1440,height:900});
+	const desktopBox=await dialog.boundingBox();
+	expect(desktopBox).not.toBeNull();
+	expect(desktopBox!.width).toBeLessThanOrEqual(440);
+
+	await page.route('**/api/policy-consent',route=>route.request().method()==='POST'
+		?route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'We could not save your acceptance. Please try again.'})})
+		:route.continue());
+	await dialog.getByRole('checkbox').check();
+	await acceptButton.click();
+	await expect(dialog.getByRole('alert')).toContainText('We could not save your acceptance.');
+	await expect(dialog).toBeVisible();
+	expect(await page.request.get('/api/policy-consent').then(response=>response.json())).toMatchObject({accepted:false});
+	await dialog.getByRole('button',{name:'Retry'}).click();
+	await expect(acceptButton).toBeDisabled();
+	await page.unroute('**/api/policy-consent');
+	await dialog.getByRole('checkbox').check();
+	await dialog.getByRole('button',{name:'Accept & Continue'}).click();
+	await expect(dialog).toBeHidden();
+	expect((await page.request.get('/api/dashboard/overview')).status()).toBe(200);
+	for(const path of ['/api/support','/api/tax-services/access'])expect((await page.request.get(path)).status()).toBe(200);
+	expect((await page.request.get('/api/theme-preference')).status()).toBe(200);
+
+	const saved=await page.request.get('/api/policy-consent').then(response=>response.json());
+	expect(saved).toMatchObject({version:currentVersion,accepted:true});
+	expect(Number.isNaN(Date.parse(saved.acceptedAt))).toBe(false);
+	expect((await page.request.post('/api/policy-consent',{data:{version:currentVersion,accepted:true}})).status()).toBe(200);
+	const records=await db.termsAcceptance.findMany({where:{userId:(await db.user.findUniqueOrThrow({where:{email:user.email},select:{id:true}})).id}});
+	expect(records).toHaveLength(1);
+	expect(records[0].version).toBe(currentVersion);
+
+	await page.reload();
+	await expect(dialog).toBeHidden();
+	await logout(page);
+	await loginAs(page,user.email,user.password,{acceptTerms:false});
+	await expect(page.locator('.policy-consent-dialog')).toBeHidden();
+
+	const secondDevice=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce'});
+	try{
+		const secondPage=await secondDevice.newPage();
+		await loginAs(secondPage,user.email,user.password,{acceptTerms:false});
+		await expect(secondPage.locator('.policy-consent-dialog')).toBeHidden();
+		expect(await secondPage.request.get('/api/policy-consent').then(response=>response.json())).toMatchObject({accepted:true,version:currentVersion});
+	}finally{
+		await secondDevice.close();
+	}
+});
+
+test('updated terms require a separate acceptance and preserve the previous version',async({page})=>{
+	const user=await createIsolatedDemoUser('terms-updated-version',{acceptTerms:false});
+	const userId=(await db.user.findUniqueOrThrow({where:{email:user.email},select:{id:true}})).id;
+	const previousVersion='2026-10-26';
+	const currentVersion='2026-11-10-e2e';
+	const previousAcceptedAt=new Date('2026-10-26T12:00:00.000Z');
+	await db.termsAcceptance.create({data:{userId,version:previousVersion,acceptedAt:previousAcceptedAt}});
+	const notice=await db.managedNotice.create({data:{
+		type:ManagedNoticeType.TERMS,
+		title:'E2E updated Terms & Conditions',
+		content:'Updated terms for the isolated Playwright test.',
+		version:currentVersion,
+		visibility:NoticeVisibility.MANDATORY_ACCEPTANCE,
+		status:ManagedNoticeStatus.PUBLISHED,
+		enabled:true,
+		publishedAt:new Date(),
+	}});
+	try{
+		await loginAs(page,user.email,user.password,{acceptTerms:false});
+		const dialog=page.getByRole('dialog',{name:'Terms & Conditions'});
+		await expect(dialog).toBeVisible();
+		await dialog.getByRole('checkbox').check();
+		await dialog.getByRole('button',{name:'Accept & Continue'}).click();
+		await expect(dialog).toBeHidden();
+		const records=await db.termsAcceptance.findMany({where:{userId},orderBy:{version:'asc'}});
+		expect(records).toHaveLength(2);
+		expect(records.map(record=>record.version)).toEqual([previousVersion,currentVersion].sort());
+		expect(records.find(record=>record.version===previousVersion)?.acceptedAt).toEqual(previousAcceptedAt);
+	}finally{
+		await db.managedNotice.delete({where:{id:notice.id}});
+	}
+});
+
 	await field.click();
 	await expect.poll(()=>field.evaluate(element=>document.activeElement===element)).toBe(true);
 	await page.keyboard.insertText(value);
@@ -137,7 +249,7 @@ test('public stories publish for visitors and members with role, schedule, expir
 		expect(adminVideoResponse.headers()['content-type']).toContain('video/mp4');
 
 		await page.setViewportSize({width:375,height:812});
-		await page.addInitScript(()=>{sessionStorage.setItem('aurevia-startup-complete','1');localStorage.setItem('aurevia-policy-consent-v1',JSON.stringify({version:1,choice:'accepted',updatedAt:new Date().toISOString()}));});
+		await page.addInitScript(()=>sessionStorage.setItem('aurevia-startup-complete','1'));
 		await page.goto('/stories');
 		await waitForStartup(page);
 		await expect(page.getByRole('heading',{name:'Stories',exact:true})).toBeVisible();
@@ -303,7 +415,7 @@ test('portfolio timeframe controls filter authenticated snapshot history accessi
 
 test('desktop 3D emblem renders with a mobile static fallback',async({browser})=>{
 	const desktopContext=await browser.newContext({viewport:{width:1440,height:900},reducedMotion:'no-preference'});
-	await desktopContext.addInitScript(()=>{sessionStorage.setItem('aurevia-startup-complete','1');sessionStorage.setItem('aurevia-introduction-complete','1');localStorage.setItem('aurevia-policy-consent-v1',JSON.stringify({version:1,choice:'accepted',updatedAt:new Date().toISOString()}));});
+	await desktopContext.addInitScript(()=>{sessionStorage.setItem('aurevia-startup-complete','1');sessionStorage.setItem('aurevia-introduction-complete','1')});
 	try{
 		const desktopPage=await desktopContext.newPage();
 		await desktopPage.goto('/');
@@ -326,7 +438,7 @@ test('desktop 3D emblem renders with a mobile static fallback',async({browser})=
 	}
 
 	const mobileContext=await browser.newContext({viewport:{width:320,height:800},reducedMotion:'reduce'});
-	await mobileContext.addInitScript(()=>{sessionStorage.setItem('aurevia-startup-complete','1');sessionStorage.setItem('aurevia-introduction-complete','1');localStorage.setItem('aurevia-policy-consent-v1',JSON.stringify({version:1,choice:'accepted',updatedAt:new Date().toISOString()}));});
+	await mobileContext.addInitScript(()=>{sessionStorage.setItem('aurevia-startup-complete','1');sessionStorage.setItem('aurevia-introduction-complete','1')});
 	try{
 		const mobilePage=await mobileContext.newPage();
 		await mobilePage.goto('/');
@@ -344,7 +456,6 @@ test('floating support launcher can be dragged horizontally and vertically',asyn
 	await page.addInitScript(()=>{
 		sessionStorage.setItem('aurevia-startup-complete','1');
 		sessionStorage.setItem('aurevia-introduction-complete','1');
-		localStorage.setItem('aurevia-policy-consent-v1',JSON.stringify({version:1,choice:'accepted',updatedAt:new Date().toISOString()}));
 		localStorage.setItem('aurevia-support-chat-position',JSON.stringify({left:1100,top:650}));
 	});
 	await page.goto('/');
@@ -539,6 +650,12 @@ test('password reset consumes a database token and changes the account password'
 	await page.getByRole('button',{name:'Sign in'}).click();
 	await page.waitForURL(url=>url.pathname==='/wallet/transactions'&&url.searchParams.get('tab')==='history');
 	await expect(page.getByRole('heading',{name:/Transaction history/i})).toBeVisible();
+	const policyAcceptance=await page.request.get('/api/policy-consent').then(response=>response.json());
+	if(!policyAcceptance.accepted){
+		const accepted=await page.request.post('/api/policy-consent',{data:{version:policyAcceptance.version,accepted:true}});
+		expect(accepted.status()).toBe(200);
+		await page.reload();
+	}
 	await page.getByRole('button',{name:'View history'}).click();
 	await expect(page.getByRole('heading',{name:'Funding requests'})).toBeVisible();
 });
@@ -1212,24 +1329,13 @@ test('administrator sign-in returns to the protected admin page requested before
 test('multiple sessions can be reviewed and other sessions revoked server-side',async({page,browser})=>{
 	const user=await createIsolatedDemoUser('multiple-sessions');
 	const {email,password}=user;
-	await page.goto('/login');
-	await waitForStartup(page);
-	await page.getByLabel('Email address').fill(email);
-	await page.getByLabel('Password',{exact:true}).fill(password);
-	await page.getByRole('button',{name:'Sign in'}).click();
-	await page.waitForURL(/dashboard/);
+	await loginAs(page,email,password);
 	await page.reload();
 	await expect(page.getByRole('heading',{name:'My Portfolio'})).toBeVisible();
 	const otherContext=await browser.newContext();
 	try{
 		const otherDevice=await otherContext.newPage();
-		await otherDevice.addInitScript(()=>localStorage.setItem('aurevia-policy-consent-v1',JSON.stringify({version:1,choice:'accepted',updatedAt:new Date().toISOString()})));
-		await otherDevice.goto('/login');
-		await waitForStartup(otherDevice);
-		await otherDevice.getByLabel('Email address').fill(email);
-		await otherDevice.getByLabel('Password',{exact:true}).fill(password);
-		await otherDevice.getByRole('button',{name:'Sign in'}).click();
-		await otherDevice.waitForURL(/dashboard/);
+		await loginAs(otherDevice,email,password);
 		expect((await page.request.get('/api/security/sessions').then(response=>response.json())).sessions).toHaveLength(2);
 		expect((await otherDevice.request.get('/api/dashboard')).status()).toBe(200);
 		const revoke=await page.request.post('/api/security/sessions',{data:{action:'logout-others',password}});

@@ -4,6 +4,7 @@ import sharp from 'sharp';
 
 const mocks=vi.hoisted(()=>({
 	getServerSession:vi.fn(),
+	assertCurrentTermsAccepted:vi.fn(),
 	createPrivateSignedUrl:vi.fn(),
 	findUnique:vi.fn(),
 	findUniqueOrThrow:vi.fn(),
@@ -18,6 +19,7 @@ const mocks=vi.hoisted(()=>({
 
 vi.mock('next-auth',()=>({getServerSession:mocks.getServerSession}));
 vi.mock('@/lib/auth-options',()=>({authOptions:{}}));
+vi.mock('@/lib/auth',()=>({assertCurrentTermsAccepted:mocks.assertCurrentTermsAccepted}));
 vi.mock('@/lib/db',()=>({db:{user:{findUnique:mocks.findUnique},$transaction:mocks.transaction}}));
 vi.mock('@/lib/notifications',()=>({createNotification:mocks.createNotification}));
 vi.mock('@/lib/private-storage',()=>({
@@ -65,6 +67,14 @@ describe('profile avatar upload',()=>{
 				expect(response.status).toBe(403);
 				expect(mocks.findUnique).not.toHaveBeenCalled();
 				expect(mocks.auditCreate).not.toHaveBeenCalled();
+			});
+
+			it('blocks profile access until the current Terms version is accepted',async()=>{
+				mocks.assertCurrentTermsAccepted.mockRejectedValueOnce(new Error('FORBIDDEN'));
+				const response=await GET(new Request('https://aurevia.test/api/profile/avatar'));
+
+				expect(response.status).toBe(403);
+				expect(mocks.findUnique).not.toHaveBeenCalled();
 			});
 
 			it('allows a verified user to change only the private avatar while identity details are locked',async()=>{

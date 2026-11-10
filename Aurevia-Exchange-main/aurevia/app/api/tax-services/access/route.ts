@@ -1,5 +1,5 @@
 import {NextResponse} from 'next/server';
-import {requireUser} from '@/lib/auth';
+import {authFailureStatus,requireUser} from '@/lib/auth';
 import {getUserAllowedServices,isTaxModuleEnabled,userHasTaxAccess,TAX_SERVICE_LABELS} from '@/lib/tax-services';
 
 export async function GET(){
@@ -13,7 +13,10 @@ export async function GET(){
 			hasAccess,
 			services:services.map(value=>({value,label:TAX_SERVICE_LABELS[value]})),
 		},{headers:{'Cache-Control':'private, no-store'}});
-	}catch{
-		return NextResponse.json({error:'Unauthorized'},{status:401});
+	}catch(error){
+		const status=authFailureStatus(error);
+		if(status)return NextResponse.json({error:status===401?'Unauthorized':'Forbidden'},{status});
+		console.error('Tax-service access could not be loaded.');
+		return NextResponse.json({error:'Tax-service access is temporarily unavailable.'},{status:503});
 	}
 }

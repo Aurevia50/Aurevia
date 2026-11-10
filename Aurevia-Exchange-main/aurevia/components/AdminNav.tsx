@@ -43,6 +43,7 @@ const groups=[
 		{href:'/admin/stories',label:'Stories',icon:Radio},
 		{href:'/admin/content',label:'Client stories',icon:Radio},
 		{href:'/admin/broadcasts',label:'Broadcasts',icon:Radio},
+		{href:'/admin/notices',label:'Notices & Conditions',icon:FileCheck2},
 		{href:'/admin/waitlist',label:'Waitlist',icon:UsersRound},
 		{href:'/admin/providers',label:'Provider health',icon:Settings2},
 		{href:'/admin/receipts',label:'Receipt review',icon:ReceiptText},

@@ -3,6 +3,7 @@ import {getServerSession} from 'next-auth';
 import {NotificationType} from '@prisma/client';
 import sharp from 'sharp';
 import {authOptions} from '@/lib/auth-options';
+import {assertCurrentTermsAccepted} from '@/lib/auth';
 import {db} from '@/lib/db';
 import {createNotification} from '@/lib/notifications';
 import {createPrivateObjectKey,createPrivateSignedUrl,deletePrivateObject,hasMatchingFileExtension,PrivateStorageError,uploadPrivateObject} from '@/lib/private-storage';
@@ -15,6 +16,7 @@ async function requireAvatarOwner(){
 	const session=await getServerSession(authOptions);
 	if(!session?.user?.id)throw new Error('UNAUTHORIZED');
 	if(session.user.role!=='USER'&&session.user.role!=='ADMIN')throw new Error('FORBIDDEN');
+	await assertCurrentTermsAccepted(session.user.id);
 	return {id:session.user.id,role:session.user.role};
 }
 

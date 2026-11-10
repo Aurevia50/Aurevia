@@ -51,7 +51,6 @@ test('local Aurevia pages have measured Lighthouse scores @lighthouse',async({br
 			await page.setViewport({width:1440,height:900});
 			await page.goto(baseURL,{waitUntil:'domcontentloaded'});
 			await page.evaluate(()=>{
-				localStorage.setItem('aurevia-policy-consent-v1',JSON.stringify({version:1,choice:'accepted',updatedAt:new Date().toISOString()}));
 				sessionStorage.setItem('aurevia-startup-complete','1');
 				sessionStorage.setItem('aurevia-introduction-complete','1');
 			});

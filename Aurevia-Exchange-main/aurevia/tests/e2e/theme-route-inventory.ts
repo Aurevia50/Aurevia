@@ -65,6 +65,7 @@ export const adminRoutes=[
 	'/admin/kyc',
 	'/admin/markets',
 	'/admin/news-feed',
+	'/admin/notices',
 	'/admin/nova',
 	'/admin/operations',
 	'/admin/payments',

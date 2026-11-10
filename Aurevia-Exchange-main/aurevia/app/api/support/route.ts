@@ -1,7 +1,7 @@
 import {NextResponse} from 'next/server';
 import {AccountMode,NotificationType,SupportAuthor,SupportStatus} from '@prisma/client';
 import {z,ZodError} from 'zod';
-import {requireUser} from '@/lib/auth';
+import {authFailureStatus,requireUser} from '@/lib/auth';
 import {db} from '@/lib/db';
 import {jsonSafe} from '@/lib/serializers';
 import {createNotification} from '@/lib/notifications';
@@ -27,7 +27,8 @@ export async function GET(){
 		const conversations=await db.supportConversation.findMany({where:{userId:user.id,accountMode:mode},include:{transaction:{select:{id:true,type:true,status:true,amount:true,currency:true}},messages:{orderBy:{createdAt:'asc'},select:{id:true,authorType:true,body:true,createdAt:true}}},orderBy:{lastMessageAt:'desc'}});
 		return NextResponse.json(jsonSafe(conversations.map(({attachmentKey,...conversation})=>({...conversation,hasAttachment:!!attachmentKey}))),{headers:{'Cache-Control':'private, no-store'}});
 	}catch(error){
-		if(error instanceof Error&&error.message==='UNAUTHORIZED')return NextResponse.json({error:'Unauthorized'},{status:401});
+		const status=authFailureStatus(error);
+		if(status)return NextResponse.json({error:status===401?'Unauthorized':'Forbidden'},{status});
 		if(error instanceof Error&&error.message==='ACCOUNT_UNAVAILABLE')return NextResponse.json({error:'This account is unavailable.'},{status:403});
 		console.error('Support history could not be loaded.');
 		return NextResponse.json({error:'Support history is temporarily unavailable.'},{status:503,headers:{'Cache-Control':'private, no-store'}});

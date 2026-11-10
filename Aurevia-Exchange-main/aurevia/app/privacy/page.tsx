@@ -1,6 +1,13 @@
 import InfoPage from '@/components/InfoPage';
+import {getCurrentPrivacyPolicy} from '@/lib/managed-notice-policy';
 
-export default function Privacy(){
+export const dynamic='force-dynamic';
+
+export default async function Privacy(){
+  const managedPolicy=await getCurrentPrivacyPolicy();
+  if(managedPolicy?.version)return <InfoPage eyebrow={`Privacy Policy · Version ${managedPolicy.version}`} title={managedPolicy.title} lead="Current published Privacy Policy." updated={managedPolicy.publishedAt?.toLocaleDateString()||managedPolicy.updatedAt.toLocaleDateString()} importantNote="" sections={[
+    {title:'Privacy Policy',content:<p className="managed-policy-copy">{managedPolicy.content}</p>},
+  ]}/>;
   return <InfoPage eyebrow="Your information" title="Privacy overview" lead="A plain-language summary of information handled by the current Aurevia Exchange application." updated="October 27, 2026" importantNote="Identity documents are stored in the configured private storage service and made available through authorized, short-lived links. Review the privacy and retention terms for your deployment before submitting real identity information." sections={[
     {title:'Information entered',content:<p>Account registration and profile forms can collect a name, email address, country, phone number, and the account password in hashed form. REAL-mode identity verification collects legal name, date of birth, address, document type, and document number; users may also submit identity-document images or PDFs for review. Avoid submitting personal identity details in an evaluation or test deployment.</p>},
     {title:'How information is used',content:<p>Information is used by the application to authenticate users, display account details, associate ledger and trading records with an account, and allow administrators to review supported verification and funding requests.</p>},

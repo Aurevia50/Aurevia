@@ -17,5 +17,5 @@ export default function Providers({children,initialLocale,initialTheme,initialUs
     defaultOptions:{queries:{retry:false,refetchOnWindowFocus:false}},
   }));
 
-  return <SessionProvider><QueryClientProvider client={queryClient}><ThemeProvider initialTheme={initialTheme} initialUserId={initialUserId}><LocaleProvider initialLocale={normalizeLocale(initialLocale)}>{children}{!pathname.startsWith('/admin')&&<FloatingSupportChat/>}<PolicyConsentGate/></LocaleProvider></ThemeProvider></QueryClientProvider></SessionProvider>;
+  return <SessionProvider><QueryClientProvider client={queryClient}><ThemeProvider initialTheme={initialTheme} initialUserId={initialUserId}><LocaleProvider initialLocale={normalizeLocale(initialLocale)}><PolicyConsentGate initialUserId={initialUserId}>{children}{!pathname.startsWith('/admin')&&<FloatingSupportChat/>}</PolicyConsentGate></LocaleProvider></ThemeProvider></QueryClientProvider></SessionProvider>;
 }
