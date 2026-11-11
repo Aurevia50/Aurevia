@@ -4,13 +4,12 @@ import {requireUser} from '@/lib/auth';
 import {db} from '@/lib/db';
 import {createNotification} from '@/lib/notifications';
 import {enqueueKycEmail} from '@/lib/kyc-email-outbox';
-import {assertKycSubmissionAllowed} from '@/lib/production-policy';
 import {createPrivateObjectKey,deletePrivateObject,hasMatchingFileExtension,PrivateStorageError,uploadPrivateObject} from '@/lib/private-storage';
 import {rateLimit} from '@/lib/rate-limit';
 
 const maxBytes=8*1024*1024;
 const allowedTypes=new Set(['image/jpeg','image/png','image/webp','application/pdf']);
-const allowedKinds=new Set(['IDENTITY_DOCUMENT','SELFIE','PROOF_OF_ADDRESS']);
+const allowedKinds=new Set(['PROOF_OF_ADDRESS']);
 
 function detectMime(bytes:Buffer){
   if(bytes.length>=5&&bytes.subarray(0,5).toString()==='%PDF-')return 'application/pdf';
@@ -60,21 +59,16 @@ export async function POST(request:Request){
     await uploadPrivateObject('kyc',user.id,documentStorageKey,bytes,mime);
     storageUploaded=true;
   const document=await db.$transaction(async tx=>{
-    const current=await tx.user.findUniqueOrThrow({where:{id:user.id},select:{kycStatus:true,approvedTier:true,accountMode:true,status:true,phoneVerified:true,kyc:{select:{submittedAt:true,address:true}},kycDocuments:{where:{kind:{in:['IDENTITY_DOCUMENT','SELFIE']},status:{notIn:['REJECTED','RESUBMISSION_REQUIRED']}},select:{kind:true}}}});
+    const current=await tx.user.findUniqueOrThrow({where:{id:user.id},select:{kycStatus:true,approvedTier:true,accountMode:true,status:true,phoneVerified:true,kyc:{select:{address:true}}}});
     if(current.status!=='ACTIVE')throw new Error('ACCOUNT_UNAVAILABLE');
     if(current.accountMode!==AccountMode.REAL)throw new Error('REAL_MODE_REQUIRED');
     if(kind==='PROOF_OF_ADDRESS'){
-      const hasIdentityDocument=current.kycDocuments.some(document=>document.kind==='IDENTITY_DOCUMENT');
-      const hasSelfie=current.kycDocuments.some(document=>document.kind==='SELFIE');
-      if(current.approvedTier<2||!current.kyc?.submittedAt||!current.kyc.address?.trim()||!current.phoneVerified||!hasIdentityDocument||!hasSelfie)throw new Error('TIER_3_PREREQUISITES_REQUIRED');
-    }else{
-      assertKycSubmissionAllowed(current.kycStatus);
+      if(current.approvedTier<2||current.kycStatus!=='APPROVED'||!current.kyc?.address?.trim()||!current.phoneVerified)throw new Error('TIER_3_PREREQUISITES_REQUIRED');
     }
     const filename=file.name.replace(/[\u0000-\u001f\u007f]/g,'').slice(0,255)||'identity-document';
     const created=await tx.kycDocument.create({data:{userId:user.id,kind:String(kind),filename,storageKey:documentStorageKey,mimeType:mime,size:bytes.length,status:'SUBMITTED'}});
-    if(kind!=='PROOF_OF_ADDRESS')await tx.user.update({where:{id:user.id},data:{kycStatus:'PENDING',verifiedAt:null}});
-   const dedupeKey=`kyc-document:${created.id}:submitted`;
-   await createNotification(tx,{userId:user.id,type:NotificationType.KYC,title:'Identity document submitted',message:'Your document was stored securely and is awaiting administrator review.',dedupeKey,actionUrl:'/kyc'});
+    const dedupeKey=`kyc-document:${created.id}:submitted`;
+    await createNotification(tx,{userId:user.id,type:NotificationType.KYC,title:'Proof of address submitted',message:'Your proof of address was stored securely and is awaiting administrator review.',dedupeKey,actionUrl:'/kyc'});
    await enqueueKycEmail(tx,user.id,'DOCUMENT_SUBMITTED',dedupeKey);
    return created;
   });
@@ -87,8 +81,8 @@ export async function POST(request:Request){
   if(error instanceof PrivateStorageError)return NextResponse.json({error:error.message},{status:error.status});
   if(error instanceof Error&&error.message==='RATE_LIMITED')return NextResponse.json({error:'Too many document uploads. Try again later.'},{status:429});
   if(error instanceof Error&&error.message==='DOCUMENT_LIMIT_REACHED')return NextResponse.json({error:'The account document limit has been reached.'},{status:409});
-  if(error instanceof Error&&error.message==='KYC_ALREADY_APPROVED')return NextResponse.json({error:'Identity verification is already approved.'},{status:409});
-  if(error instanceof Error&&error.message==='TIER_3_PREREQUISITES_REQUIRED')return NextResponse.json({error:'Submit your identity details, ID and selfie, and verify your phone before uploading proof of address.'},{status:409});
+  if(error instanceof Error&&error.message==='TIER_3_PREREQUISITES_REQUIRED')return NextResponse.json({error:'Complete Didit identity verification, verify your phone, and provide your residential address before uploading proof of address.'},{status:409});
+  if(error instanceof Error&&error.message==='INVALID_DOCUMENT_TYPE')return NextResponse.json({error:'New identity checks use Didit. Only proof-of-address uploads are accepted here.'},{status:410});
   return NextResponse.json({error:'Document upload is unavailable.'},{status:400});
  }
 }

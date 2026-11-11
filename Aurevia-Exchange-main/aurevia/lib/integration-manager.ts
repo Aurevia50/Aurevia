@@ -7,7 +7,7 @@ import {getFinnhubQuote} from '@/lib/providers/finnhub-market-data';
 import {getAlpacaPaperAccountHealth} from '@/lib/providers/alpaca-crypto-provider';
 
 export type IntegrationStatus='CONNECTED'|'MISSING_CREDENTIALS'|'CONFIGURATION_REQUIRED'|'CONNECTION_FAILED'|'PROVIDER_UNAVAILABLE'|'PENDING_ADMIN_APPROVAL'|'NOT_CONFIGURED'|'DISABLED';
-export type IntegrationId='openrouter'|'gemini'|'groq'|'alpaca'|'finnhub'|'currency'|'supabase_auth'|'supabase_storage'|'resend'|'termii'|'smtp'|'browser_push'|'gnews'|'payment'|'database'|'akedly';
+export type IntegrationId='openrouter'|'gemini'|'groq'|'alpaca'|'finnhub'|'currency'|'supabase_auth'|'supabase_storage'|'resend'|'termii'|'smtp'|'browser_push'|'gnews'|'payment'|'database'|'akedly'|'didit';
 export type IntegrationCheck={id:IntegrationId;name:string;status:IntegrationStatus;detail:string;feature:string;documentation:string;checkedAt:string;canTest:boolean};
 
 const docs:Record<IntegrationId,string>={
@@ -17,6 +17,7 @@ const docs:Record<IntegrationId,string>={
 	termii:'https://developers.termii.com/',smtp:'https://nodemailer.com/smtp/',browser_push:'https://developer.mozilla.org/en-US/docs/Web/API/Push_API',
 	gnews:'https://docs.gnews.io/',payment:'https://render.com/docs/configure-environment-variables',database:'https://supabase.com/docs/guides/database/connecting-to-postgres',
 	akedly:'https://docs.akedly.io/authentication/v2',
+	didit:'https://docs.didit.me/',
 };
 
 type AiEngineStatus=Awaited<ReturnType<typeof getAiEngineStatus>>;
@@ -157,20 +158,20 @@ export async function checkIntegration(id:IntegrationId,aiEngineStatus?:Promise<
 		return checkConfiguredOnly(id,'Termii SMS',Boolean(config.termiiApiKey&&config.termiiSenderId),'Phone verification','TERMII_API_KEY and TERMII_SENDER_ID are required.');
 	}
 	if(id==='akedly'){
-		const config=getServerConfiguration().akedly;
+		return item('akedly','Akedly (legacy)','DISABLED','Akedly is retained only for historical records. New KYC and phone-verification flows do not call it.','Historical verification records',false);
+	}
+	if(id==='didit'){
+		const config=getServerConfiguration().didit;
 		const credentials=[
-			['AKEDLY_API_KEY',config.apiKey],
-			['AKEDLY_PIPELINE_ID',config.pipelineId],
-			['AKEDLY_WIDGET_ID',config.widgetId],
-			['AKEDLY_PUBLIC_KEY',config.publicKey],
-			['AKEDLY_WIDGET_SECRET',config.widgetSecret],
-			['AKEDLY_WEBHOOK_SECRET',config.webhookSecret],
+			['DIDIT_API_KEY',config.apiKey],
+			['DIDIT_WORKFLOW_ID',config.workflowId],
+			['DIDIT_WEBHOOK_SECRET',config.webhookSecret],
 		] as const;
 		const missing=credentials.filter(([,value])=>!value).map(([name])=>name);
-		if(missing.length)return item('akedly','Akedly authentication','MISSING_CREDENTIALS',`Missing server-side configuration: ${missing.join(', ')}.`,'Email and phone verification',false);
-		if(config.formattingIssues.length)return item('akedly','Akedly authentication','CONFIGURATION_REQUIRED',`Invalid environment value formatting: ${config.formattingIssues.join(', ')}.`,'Email and phone verification',false);
-		if(!config.enabled)return item('akedly','Akedly authentication','DISABLED','Credentials are configured, but Akedly remains disabled until live delivery and webhook verification are completed. Set AKEDLY_ENABLED=true only after those checks pass.','Email and phone verification',false);
-		return item('akedly','Akedly authentication','CONFIGURATION_REQUIRED','Credentials are configured, but Akedly has no read-only health check. Test a controlled email and phone verification, including the configured webhook, before relying on delivery.','Email and phone verification',false);
+		if(missing.length)return item('didit','Didit KYC','MISSING_CREDENTIALS',`Missing server-side configuration: ${missing.join(', ')}.`,'KYC identity verification',false);
+		if(config.formattingIssues.length)return item('didit','Didit KYC','CONFIGURATION_REQUIRED',`Invalid environment value formatting: ${config.formattingIssues.join(', ')}.`,'KYC identity verification',false);
+		if(!config.enabled)return item('didit','Didit KYC','DISABLED','Credentials are configured, but Didit remains disabled until the workflow and webhook are validated in the target environment. Set DIDIT_ENABLED=true only after an authorized test completes.','KYC identity verification',false);
+		return item('didit','Didit KYC','CONFIGURATION_REQUIRED','Credentials are configured, but Didit has no read-only health check. Test a controlled KYC session and webhook callback before relying on production verification.','KYC identity verification',false);
 	}
 	if(id==='browser_push')return checkConfiguredOnly(id,'Browser push',Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim()&&process.env.VAPID_PRIVATE_KEY?.trim()&&process.env.VAPID_SUBJECT?.trim()&&process.env.PUSH_SUBSCRIPTION_ENCRYPTION_KEY?.trim()),'Web push notifications','VAPID keys, subject, and subscription encryption key are required.');
 	const payment=getServerConfiguration().payment;
@@ -178,13 +179,13 @@ export async function checkIntegration(id:IntegrationId,aiEngineStatus?:Promise<
 }
 
 export async function getIntegrationInventory(aiStatus?:Promise<AiEngineStatus>):Promise<IntegrationCheck[]>{
-	const ids:IntegrationId[]=['openrouter','gemini','groq','alpaca','finnhub','currency','supabase_auth','supabase_storage','resend','termii','smtp','browser_push','gnews','payment','database','akedly'];
+	const ids:IntegrationId[]=['openrouter','gemini','groq','alpaca','finnhub','currency','supabase_auth','supabase_storage','resend','termii','smtp','browser_push','gnews','payment','database','akedly','didit'];
 	const aiEngineStatus=aiStatus||getAiEngineStatus();
 	return Promise.all(ids.map(id=>checkIntegration(id,aiEngineStatus)));
 }
 
 export function isIntegrationId(value:unknown):value is IntegrationId{
-	return typeof value==='string'&&['openrouter','gemini','groq','alpaca','finnhub','currency','supabase_auth','supabase_storage','resend','termii','smtp','browser_push','gnews','payment','database','akedly'].includes(value);
+	return typeof value==='string'&&['openrouter','gemini','groq','alpaca','finnhub','currency','supabase_auth','supabase_storage','resend','termii','smtp','browser_push','gnews','payment','database','akedly','didit'].includes(value);
 }
 
 export function mapAiStatusForDisplay(value:string){return aiStatus(value)}

@@ -75,7 +75,7 @@ describe('smart onboarding assistant',()=>{
 		const body=await response.json();
 
 		expect(response.status).toBe(200);
-		expect(body.steps).toEqual([{id:'await_identity_review',title:'Check your identity-review status',href:'/kyc'}]);
+		expect(body.steps).toEqual([{id:'verify_identity_with_didit',title:'Start or continue Didit identity verification',href:'/kyc'}]);
 		expect(body.steps[0].title).not.toContain('approved');
 	});
 

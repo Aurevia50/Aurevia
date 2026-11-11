@@ -2,71 +2,48 @@ import {beforeEach,describe,expect,it,vi} from 'vitest';
 
 const mocks=vi.hoisted(()=>({
 	requireUser:vi.fn(),
-	userFindUniqueOrThrow:vi.fn(),
-	userUpdate:vi.fn(),
-	kycUpsert:vi.fn(),
-	transaction:vi.fn(),
-	createNotification:vi.fn(),
-	notifyActiveAdmins:vi.fn(),
-	enqueueKycEmail:vi.fn(),
+	userFindUnique:vi.fn(),
+	profileFindUnique:vi.fn(),
+	diditFindFirst:vi.fn(),
 }));
 
 vi.mock('@/lib/auth',()=>({requireUser:mocks.requireUser}));
-vi.mock('@/lib/db',()=>({db:{$transaction:mocks.transaction}}));
-vi.mock('@/lib/notifications',()=>({createNotification:mocks.createNotification,notifyActiveAdmins:mocks.notifyActiveAdmins}));
-vi.mock('@/lib/kyc-email-outbox',()=>({enqueueKycEmail:mocks.enqueueKycEmail}));
+vi.mock('@/lib/db',()=>({db:{
+	user:{findUnique:mocks.userFindUnique},
+	kycProfile:{findUnique:mocks.profileFindUnique},
+	diditVerificationSession:{findFirst:mocks.diditFindFirst},
+}}));
 
-import {POST} from '@/app/api/kyc/route';
+import {GET,POST} from '@/app/api/kyc/route';
 
-function request(body:unknown){
-	return new Request('https://aurevia.test/api/kyc',{
-		method:'POST',
-		headers:{'content-type':'application/json'},
-		body:JSON.stringify(body),
-	});
-}
-
-describe('Tier 2 KYC submission',()=>{
+describe('Didit-backed KYC status route',()=>{
 	beforeEach(()=>{
 		vi.clearAllMocks();
 		mocks.requireUser.mockResolvedValue({id:'user-1'});
-		mocks.userFindUniqueOrThrow.mockResolvedValue({kycStatus:'PENDING',accountMode:'REAL',status:'ACTIVE'});
-		mocks.userUpdate.mockResolvedValue({});
-		mocks.kycUpsert.mockResolvedValue({id:'kyc-1',userId:'user-1'});
-		mocks.transaction.mockImplementation(async(callback:(tx:unknown)=>Promise<unknown>)=>callback({
-			user:{findUniqueOrThrow:mocks.userFindUniqueOrThrow,update:mocks.userUpdate},
-			kycProfile:{upsert:mocks.kycUpsert},
-		}));
+		mocks.userFindUnique.mockResolvedValue({accountMode:'REAL',status:'ACTIVE'});
+		mocks.profileFindUnique.mockResolvedValue({id:'legacy-profile',userId:'user-1'});
+		mocks.diditFindFirst.mockResolvedValue({sessionId:'session-id',status:'PENDING'});
 	});
 
-	it('accepts identity information with a residential address without phone OTP or proof-of-address data',async()=>{
-		const response=await POST(request({
-			legalName:'Ada Example',
-			dob:'1990-01-01',
-			address:'123 Main Street, Example City',
-			idType:'PASSPORT',
-			idNumber:'P1234567',
-		}));
+	it('preserves and returns a user’s existing KYC record with only their current Didit status',async()=>{
+		const response=await GET();
 
 		expect(response.status).toBe(200);
-		expect(mocks.kycUpsert).toHaveBeenCalledWith(expect.objectContaining({
-			create:expect.objectContaining({legalName:'Ada Example',address:'123 Main Street, Example City',idType:'PASSPORT',idNumber:'P1234567'}),
+		expect(await response.json()).toMatchObject({
+			id:'legacy-profile',
+			diditVerification:{sessionId:'session-id',status:'PENDING'},
+		});
+		expect(mocks.diditFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+			where:{userId:'user-1'},
+			select:expect.not.objectContaining({decision:expect.anything()}),
 		}));
-		expect(mocks.userFindUniqueOrThrow).toHaveBeenCalledWith(expect.objectContaining({
-			select:{kycStatus:true,accountMode:true,status:true},
-		}));
-		expect(mocks.userUpdate).toHaveBeenCalledWith({where:{id:'user-1'},data:{kycStatus:'PENDING',verifiedAt:null}});
 	});
 
-	it('requires the residential address needed for Tier 3 review',async()=>{
-		const response=await POST(request({
-			legalName:'Ada Example',
-			dob:'1990-01-01',
-			idType:'PASSPORT',
-			idNumber:'P1234567',
-		}));
+	it('does not let authenticated users submit manual approval data anymore',async()=>{
+		const response=await POST();
 
-		expect(response.status).toBe(400);
-		expect(mocks.kycUpsert).not.toHaveBeenCalled();
+		expect(response.status).toBe(410);
+		expect(await response.json()).toMatchObject({error:expect.stringContaining('Didit')});
+		expect(mocks.profileFindUnique).not.toHaveBeenCalled();
 	});
 });

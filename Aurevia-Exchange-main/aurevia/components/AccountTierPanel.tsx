@@ -10,14 +10,14 @@ import OnboardingAssistant from '@/components/OnboardingAssistant';
 type TierRequest={id:string;currentTier:number;requestedTier:number;status:string;userMessage:string|null;adminReason:string|null;createdAt:string;reviewedAt:string|null};
 type TierData={
 	tier:string;currentTier:number;progress:number;accountMode:'DEMO'|'REAL';canRequest:boolean;
-	requirements:{nameComplete:boolean;countryComplete:boolean;phoneComplete:boolean;phoneVerified:boolean;profileComplete:boolean;verificationSubmitted:boolean;identityDocumentUploaded:boolean;selfieUploaded:boolean;proofOfAddressUploaded:boolean};
+	requirements:{nameComplete:boolean;countryComplete:boolean;phoneComplete:boolean;phoneVerified:boolean;profileComplete:boolean;identityApproved:boolean;addressProvided:boolean;proofOfAddressUploaded:boolean};
 	permissions:{basicAccountAccess:boolean;profileManagement:boolean;identityVerification:boolean;tierBenefits:boolean;verifiedAccount:boolean;realMoneyServices:boolean};
 	requests:TierRequest[];
 };
 const tiers=[
 	{number:1,title:'Registered account',icon:UserRound,description:'Sign in, use your dashboard, and manage core account features.'},
-	{number:2,title:'Identity reviewed',icon:Sparkles,description:'Submit a government-issued ID and selfie for admin review. Phone OTP is not required.'},
-	{number:3,title:'Verified account',icon:Crown,description:'Submit proof of address, verify your phone, and get admin approval.'},
+	{number:2,title:'Profile complete',icon:Sparkles,description:'Complete your name and country to unlock configured Tier 2 benefits.'},
+	{number:3,title:'Verified account',icon:Crown,description:'Complete Didit identity verification, verify your phone, and submit proof of address for review.'},
 ];
 
 export default function AccountTierPanel(){
@@ -75,10 +75,8 @@ export default function AccountTierPanel(){
 		{label:'Country selected',complete:requirements?.countryComplete,href:'/settings#profile'},
 		{label:'Valid phone number added',complete:requirements?.phoneComplete,href:'/settings#profile'},
 		{label:'Phone number verified for KYC',complete:requirements?.phoneVerified,href:'/kyc'},
-		{label:'Identity information submitted',complete:requirements?.verificationSubmitted,href:'/kyc'},
-		{label:'Identity document uploaded',complete:requirements?.identityDocumentUploaded,href:'/kyc'},
-		{label:'Selfie uploaded',complete:requirements?.selfieUploaded,href:'/kyc'},
-		{label:'Residential address provided',complete:requirements?.verificationSubmitted,href:'/kyc'},
+		{label:'Didit identity verification approved',complete:requirements?.identityApproved,href:'/kyc'},
+		{label:'Residential address provided',complete:requirements?.addressProvided,href:'/settings#profile'},
 		{label:'Proof of address uploaded',complete:requirements?.proofOfAddressUploaded,href:'/kyc'},
 	];
 	const completedRequirements=checks.filter(item=>item.complete).length;
@@ -115,7 +113,7 @@ export default function AccountTierPanel(){
 				<section className="tier-panel">
 					<div className="tier-panel-heading"><div><span>YOUR CHECKLIST</span><h2>Completed and outstanding</h2></div><ShieldCheck size={18}/></div>
 					<div className="tier-checklist">{checks.map(item=><div className={`tier-check ${item.complete?'is-done':''}`} key={item.label}><span>{item.complete?<Check size={14}/>:<Clock3 size={14}/>}</span><span>{item.label}</span>{!item.complete&&<Link href={item.href}>Complete</Link>}</div>)}</div>
-					{data.accountMode==='REAL'&&<p className="mt-3 text-xs leading-5 muted">Complete your submissions and phone verification before review. An administrator reviews identity documents separately; OTP confirms your phone only and does not approve your identity.</p>}
+					{data.accountMode==='REAL'&&<p className="mt-3 text-xs leading-5 muted">Didit verifies your identity. Tier 3 also requires phone verification, a residential address, proof of address, and administrator review.</p>}
 					<OnboardingAssistant/>
 					<div className="tier-panel-actions"><Link className="button-secondary" href="/settings#profile">Edit profile</Link>{data.accountMode==='REAL'&&<Link className="button-secondary" href="/kyc">Identity verification</Link>}{data.accountMode==='DEMO'&&<p>Switch to REAL mode to submit identity verification for Tier 3.</p>}</div>
 				</section>
@@ -126,7 +124,7 @@ export default function AccountTierPanel(){
 				</section>
 			</div>
 
-			{data.canRequest&&<form className="tier-request-form" onSubmit={event=>void requestUpgrade(event)}><div><span>TIER 3 · ADMIN REVIEW</span><h2>Ready for Tier 3 review?</h2><p>Your KYC profile, identity documents, proof of address, and phone verification are submitted. An administrator reviews the identity packet and Tier 3 request; Tier 3 is activated only after approval.</p></div><label className="account-label">Optional note for the reviewer<textarea className="input min-h-20" maxLength={1000} value={message} onChange={event=>setMessage(event.target.value)} placeholder="Add context for your review."/></label><button className="btn bg-gold text-black" disabled={busy}>{busy?'Submitting…':'Request Tier 3 review'}</button></form>}
+			{data.canRequest&&<form className="tier-request-form" onSubmit={event=>void requestUpgrade(event)}><div><span>TIER 3 · ADMIN REVIEW</span><h2>Ready for Tier 3 review?</h2><p>Your Didit identity verification, verified phone, residential address, and proof of address are ready. An administrator reviews the request; Tier 3 activates only after approval.</p></div><label className="account-label">Optional note for the reviewer<textarea className="input min-h-20" maxLength={1000} value={message} onChange={event=>setMessage(event.target.value)} placeholder="Add context for your review."/></label><button className="btn bg-gold text-black" disabled={busy}>{busy?'Submitting…':'Request Tier 3 review'}</button></form>}
 
 			{latest&&<section className="tier-panel tier-request-history"><div className="tier-panel-heading"><div><span>REVIEW HISTORY</span><h2>Latest Tier {latest.requestedTier} request · {latest.status.replaceAll('_',' ')}</h2></div><Clock3 size={18}/></div><p className="text-sm muted">Submitted {new Date(latest.createdAt).toLocaleString()}{latest.reviewedAt?` · Reviewed ${new Date(latest.reviewedAt).toLocaleString()}`:''}</p>{latest.adminReason&&<p className="mt-2 text-sm muted">Administrator note: {latest.adminReason}</p>}{latest.status==='NEEDS_INFORMATION'&&<form className="mt-3 grid gap-3" onSubmit={event=>void submitAdditionalInformation(event)}><label className="account-label">Additional information<textarea className="input min-h-20" required minLength={3} maxLength={1000} value={message} onChange={event=>setMessage(event.target.value)}/></label><button className="btn bg-gold text-black justify-self-start" disabled={busy||message.trim().length<3}>{busy?'Submitting…':'Send information for review'}</button></form>}{data.requests.length>1&&<div className="mt-3 grid gap-2">{data.requests.slice(1).map(request=><p className="text-xs muted" key={request.id}>Tier {request.requestedTier} · {request.status.replaceAll('_',' ')} · {new Date(request.createdAt).toLocaleDateString()}</p>)}</div>}</section>}
 		</>}

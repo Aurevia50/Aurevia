@@ -7,7 +7,6 @@ import {createNotification} from '@/lib/notifications';
 import {rateLimit} from '@/lib/rate-limit';
 import {verificationConfig} from '@/lib/config';
 import {verificationCodeMatches,verifyTermiiVerificationToken,verifyTwilioVerificationCode,TwilioVerifyProviderError} from '@/lib/verification-delivery';
-import {akedlyAttemptIdFromReference} from '@/lib/akedly-verification';
 import {trustedProxyClientIp} from '@/lib/request-ip';
 import {isTierThreePhoneVerificationEligible,getTierProfileRequirements} from '@/lib/production-policy';
 
@@ -36,7 +35,9 @@ export async function POST(request:Request){
 
 		const challenge=await db.verificationCode.findUnique({where:{userId:user.id}});
 		if(!challenge||challenge.channel!==VerificationChannel.SMS||!challenge.providerReference)return NextResponse.json({error:'Request a new phone verification code.'},{status:400});
-		if(akedlyAttemptIdFromReference(challenge.providerReference))return NextResponse.json({error:'Complete phone verification in the secure Akedly widget.'},{status:409});
+		if(challenge.providerReference.startsWith('AKEDLY:')||challenge.providerReference==='AKEDLY_PENDING'){
+			return NextResponse.json({error:'This legacy phone attempt is no longer active. Request a new SMS code to continue.'},{status:409});
+		}
 		const now=new Date();
 		if(challenge.expiresAt<=now){
 			await db.verificationCode.deleteMany({where:{id:challenge.id,expiresAt:{lte:now}}});

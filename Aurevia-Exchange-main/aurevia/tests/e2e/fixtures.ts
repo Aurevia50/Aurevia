@@ -255,7 +255,7 @@ test.afterEach(async({page},testInfo)=>{
 		}
 		return !(accountClosureAccessDenied&&message.includes('status of 403 (Forbidden)')||accountClosureProfileDenied&&message.includes('Unable to refresh the account tier.'));
 	});
-	expect(unexpectedConsoleErrors,`browser console errors from ${JSON.stringify(capture.consoleErrorOrigins)}; cancelled requests: ${JSON.stringify(capture.cancelledRequests)}; page errors: ${JSON.stringify(capture.pageErrors)}; failed application responses: ${JSON.stringify(capture.failedResponses)}`).toEqual([]);
+	expect(unexpectedConsoleErrors,`browser console errors: ${JSON.stringify(unexpectedConsoleErrors)}; origins: ${JSON.stringify(capture.consoleErrorOrigins)}; cancelled requests: ${JSON.stringify(capture.cancelledRequests)}; failed application requests: ${JSON.stringify(capture.failedRequests)}; page errors: ${JSON.stringify(capture.pageErrors)}; failed application responses: ${JSON.stringify(capture.failedResponses)}`).toEqual([]);
 	expect(unexpectedPageErrors,'uncaught browser exceptions').toEqual([]);
 	expect(capture.failedRequests,'failed application requests').toEqual([]);
 	expect(unexpectedResponses,'unexpected failed application responses').toEqual([]);

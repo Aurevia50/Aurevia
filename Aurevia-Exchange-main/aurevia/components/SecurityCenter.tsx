@@ -9,6 +9,22 @@ type SecuritySession={id:string;deviceLabel:string|null;createdAt:string;lastAct
 type TotpSetup={qrCode:string;manualKey:string;expiresInSeconds:number};
 type SessionAction={action:'revoke-session'|'logout-others'|'logout-all';sessionId?:string};
 
+const passwordChangeSuccessKey='aurevia-password-change-success';
+const passwordChangeSuccessLifetime=60_000;
+
+function readPasswordChangeSuccess(){
+	try{
+		const saved=sessionStorage.getItem(passwordChangeSuccessKey);
+		if(!saved)return null;
+		const result=JSON.parse(saved) as {message?:unknown;expiresAt?:unknown};
+		if(typeof result.message!=='string'||typeof result.expiresAt!=='number'||result.expiresAt<=Date.now()){
+			sessionStorage.removeItem(passwordChangeSuccessKey);
+			return null;
+		}
+		return result.message;
+	}catch{return null}
+}
+
 function GoldLockIcon(){
 	return <svg className="security-center-3d-icon" viewBox="0 0 48 48" aria-hidden="true">
 		<defs>
@@ -92,17 +108,25 @@ export default function SecurityCenter({email,twoFactorEnabled:initialTwoFactorE
 	},[]);
 
 	useEffect(()=>{void loadSessions();},[loadSessions]);
+	useEffect(()=>{
+		const successMessage=readPasswordChangeSuccess();
+		if(successMessage)setMessage(successMessage);
+	},[]);
 
 	async function submitPasswordChange(event:FormEvent<HTMLFormElement>){
 		event.preventDefault();
+		try{sessionStorage.removeItem(passwordChangeSuccessKey)}catch{}
 		setBusy(true);setError('');setMessage('');
 		try{
 			const response=await fetch('/api/security/password',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({currentPassword,newPassword,confirmPassword})});
 			const result=await response.json();
 			if(!response.ok)throw new Error(result.error||'Unable to change your password.');
+			const successMessage=result.message||'Password changed successfully.';
+			try{sessionStorage.setItem(passwordChangeSuccessKey,JSON.stringify({message:successMessage,expiresAt:Date.now()+passwordChangeSuccessLifetime}))}catch{}
+			setMessage(successMessage);
 			await update();
 			setCurrentPassword('');setNewPassword('');setConfirmPassword('');
-			setPasswordExpanded(false);setMessage(result.message||'Password changed successfully.');
+			setPasswordExpanded(false);
 			await loadSessions();
 		}catch(exception){setError(exception instanceof Error?exception.message:'Unable to change your password.');}
 		finally{setBusy(false);}

@@ -69,4 +69,22 @@ describe('phone verification route rate limits',()=>{
 		expect(mocks.rateLimit).toHaveBeenCalledWith('kyc-phone-verify-user:user-1',24,60*60_000);
 		expect(mocks.verifyTwilio).toHaveBeenCalledWith('+2348031234567','123456');
 	});
+
+	it('does not send historical Akedly attempts back to the retired widget',async()=>{
+		mocks.codeFindUnique.mockResolvedValue({
+			id:'legacy-challenge',channel:'SMS',providerReference:'AKEDLY:old-attempt',codeHash:'legacy-hash',
+			expiresAt:new Date(Date.now()+60_000),attempts:0,
+		});
+		const request=new Request('https://aurevia.test/api/kyc/phone/verify',{
+			method:'POST',
+			headers:{'content-type':'application/json'},
+			body:JSON.stringify({code:'123456'}),
+		});
+
+		const response=await POST(request);
+
+		expect(response.status).toBe(409);
+		expect(await response.json()).toMatchObject({error:'This legacy phone attempt is no longer active. Request a new SMS code to continue.'});
+		expect(mocks.verifyTwilio).not.toHaveBeenCalled();
+	});
 });

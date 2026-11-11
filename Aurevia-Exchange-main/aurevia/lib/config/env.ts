@@ -106,6 +106,15 @@ export type ServerConfiguration = {
     formattingIssues: string[];
     configured: boolean;
   };
+  didit: {
+    enabled: boolean;
+    apiKey: string;
+    workflowId: string;
+    webhookSecret: string;
+    environment: string;
+    formattingIssues: string[];
+    configured: boolean;
+  };
 };
 
 export type PublicConfiguration = {
@@ -145,9 +154,33 @@ const akedlyEnabledEnv = (source: EnvironmentSource = process.env): boolean => {
     : value;
   return normalized.toLowerCase() === 'true';
 };
+const diditEnabledEnv = (source: EnvironmentSource = process.env): boolean => {
+  const value = env('DIDIT_ENABLED', source);
+  const normalized = hasSurroundingQuotes(value)
+    ? value.slice(1, -1).trim()
+    : value;
+  return normalized.toLowerCase() === 'true';
+};
 const numberEnv = (name: string, fallback: number, source: EnvironmentSource = process.env): number => {
   const value = Number(source[name]?.trim() || fallback);
   return Number.isFinite(value) ? value : fallback;
+};
+
+const diditEnvironmentFormattingIssues = (source: EnvironmentSource): string[] => {
+  const keys = [
+    'DIDIT_API_KEY',
+    'DIDIT_WORKFLOW_ID',
+    'DIDIT_WEBHOOK_SECRET',
+    'DIDIT_ENV',
+  ] as const;
+  return keys.flatMap(name => {
+    const value = source[name];
+    if(!value) return [];
+    if(value !== value.trim()) return [`${name} (remove surrounding whitespace)`];
+    if(/[\u0000-\u001f\u007f]/.test(value)) return [`${name} (remove control characters)`];
+    if(hasSurroundingQuotes(value)) return [`${name} (remove surrounding quotes)`];
+    return [];
+  });
 };
 
 function cleanUrl(value: string): string {
@@ -247,6 +280,14 @@ export function getServerConfiguration(source: EnvironmentSource = process.env):
     widgetSecret: env('AKEDLY_WIDGET_SECRET', source),
     webhookSecret: env('AKEDLY_WEBHOOK_SECRET', source),
     formattingIssues: akedlyEnvironmentFormattingIssues(source),
+  };
+  const didit = {
+    enabled: diditEnabledEnv(source),
+    apiKey: env('DIDIT_API_KEY', source),
+    workflowId: env('DIDIT_WORKFLOW_ID', source),
+    webhookSecret: env('DIDIT_WEBHOOK_SECRET', source),
+    environment: env('DIDIT_ENV', source),
+    formattingIssues: diditEnvironmentFormattingIssues(source),
   };
 
   return {
@@ -349,6 +390,13 @@ export function getServerConfiguration(source: EnvironmentSource = process.env):
       configured: [akedly.apiKey,akedly.pipelineId,akedly.widgetId,akedly.publicKey,akedly.widgetSecret,akedly.webhookSecret]
         .every(Boolean)&&akedly.formattingIssues.length===0,
     },
+    didit: {
+      ...didit,
+      configured: [didit.apiKey,didit.workflowId,didit.webhookSecret].every(Boolean)
+        &&(didit.environment==='sandbox'||didit.environment==='live')
+        &&!((didit.apiKey.startsWith('sk_test_')&&didit.environment!=='sandbox')||(didit.apiKey.startsWith('sk_live_')&&didit.environment!=='live'))
+        &&didit.formattingIssues.length===0,
+    },
   };
 }
 
@@ -378,6 +426,7 @@ export function validateServerConfiguration(config: ServerConfiguration): string
     issues.push('NEXTAUTH_URL must be a valid absolute HTTPS URL');
   }
   issues.push(...config.akedly.formattingIssues.map(issue=>`Invalid Akedly environment formatting: ${issue}`));
+  issues.push(...config.didit.formattingIssues.map(issue=>`Invalid Didit environment formatting: ${issue}`));
   if(config.execution.realEnabled && (!config.execution.alpacaTradingConfigured || config.execution.alpacaProvider.toLowerCase() !== 'alpaca')) issues.push('REAL_EXECUTION_ENABLED requires a complete Individual Alpaca Trading API configuration selected with ALPACA_PROVIDER=alpaca');
   if(config.execution.realEnabled && config.execution.alpacaTradingUrlConfigured && !config.execution.alpacaTradingUrlValid) issues.push('ALPACA_TRADING_BASE_URL must use an approved HTTPS Alpaca Trading API host');
   return issues;
@@ -406,6 +455,7 @@ export function configurationSummary(config: ServerConfiguration) {
       productionLicenseConfirmed:config.marketData.productionLicenseConfirmed,
     },
     akedlyConfigured: config.akedly.configured,
+    diditConfigured: config.didit.configured,
     paymentConfigured: config.payment.configured,
   };
 }

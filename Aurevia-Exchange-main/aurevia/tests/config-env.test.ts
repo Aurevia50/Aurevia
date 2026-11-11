@@ -1,3 +1,4 @@
+import {createHmac} from 'node:crypto';
 import {afterEach,describe,expect,it,vi} from 'vitest';
 import {
   getPublicConfiguration,
@@ -7,6 +8,7 @@ import {
   validateServerConfiguration,
 } from '../lib/config/env';
 import {resolveRenderApplicationUrls} from '../lib/config/render-urls';
+import {canonicalizeDiditWebhook,diditReadiness,verifyDiditWebhook} from '../lib/didit';
 
 afterEach(()=>vi.unstubAllEnvs());
 
@@ -124,6 +126,45 @@ describe('canonical environment configuration',()=>{
     );
     expect(JSON.stringify(config.akedly.formattingIssues)).not.toContain('test-api-key');
     expect(JSON.stringify(config.akedly.formattingIssues)).not.toContain('test-widget-secret');
+  });
+
+  it('supports Didit as an env-backed KYC provider without exposing secrets',()=>{
+    const diditSource={
+      DIDIT_API_KEY:'sk_test_secret-key',
+      DIDIT_WORKFLOW_ID:'542d16b9-4cf3-451d-8470-8ae456c6e22b',
+      DIDIT_WEBHOOK_SECRET:'whsec_test-webhook-secret',
+      DIDIT_ENABLED:'true',
+      DIDIT_ENV:'sandbox',
+    };
+    const config=getServerConfiguration(diditSource);
+
+    expect(config.didit).toMatchObject({
+      enabled:true,
+      apiKey:'sk_test_secret-key',
+      workflowId:'542d16b9-4cf3-451d-8470-8ae456c6e22b',
+      configured:true,
+    });
+    expect(config.didit.webhookSecret).toBe('whsec_test-webhook-secret');
+    expect(JSON.stringify(getPublicConfiguration(diditSource))).not.toContain('sk_test_secret-key');
+    expect(JSON.stringify(getPublicConfiguration(diditSource))).not.toContain('whsec_test-webhook-secret');
+  });
+
+  it('activates Didit readiness and verifies signed webhook payloads',()=>{
+    const diditSource={
+      DIDIT_API_KEY:'sk_test_secret-key',
+      DIDIT_WORKFLOW_ID:'542d16b9-4cf3-451d-8470-8ae456c6e22b',
+      DIDIT_WEBHOOK_SECRET:'whsec_test-webhook-secret',
+      DIDIT_ENABLED:'true',
+      DIDIT_ENV:'sandbox',
+    };
+
+    expect(diditReadiness(diditSource).ready).toBe(true);
+
+    const timestamp=Math.floor(Date.now()/1000);
+    const payload={event_id:'9c0c8b8a-1111-4222-9333-444444444444',session_id:'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',webhook_type:'status.updated',timestamp,created_at:timestamp,environment:'sandbox',workflow_id:'542d16b9-4cf3-451d-8470-8ae456c6e22b',vendor_data:'user-42',status:'Approved',decision:{name:'José'}};
+    const body=JSON.stringify(payload);
+    const signature=createHmac('sha256', 'whsec_test-webhook-secret').update(canonicalizeDiditWebhook(payload),'utf8').digest('hex');
+    expect(() => verifyDiditWebhook(body, {'x-signature-v2':signature,'x-timestamp':String(timestamp)}, diditSource)).not.toThrow();
   });
 
   it('detects optional integrations without requiring credentials',()=>{

@@ -21,8 +21,8 @@ function getOnboardingSteps(input:{
 	requirements:ReturnType<typeof getTierProfileRequirements>;
 	phoneVerified:boolean;
 	kycStatus:string;
-	verificationSubmitted:boolean;
-	documents:Array<{status:string}>;
+	addressProvided:boolean;
+	proofOfAddressDocuments:Array<{status:string}>;
 	currentTier:number;
 	tierRequestStatus:string|null;
 }):OnboardingStep[]{
@@ -34,14 +34,14 @@ function getOnboardingSteps(input:{
 	if(input.accountMode===AccountMode.REAL&&input.requirements.profileComplete){
 		if(!input.phoneVerified){
 			steps.push({id:'verify_phone',title:'Verify your phone number',href:'/kyc'});
-		}else if(input.kycStatus==='REJECTED'||input.kycStatus==='NEEDS_CHANGES'||input.documents.some(document=>['REJECTED','RESUBMISSION_REQUIRED'].includes(document.status))){
+		}else if(input.kycStatus==='REJECTED'||input.kycStatus==='NEEDS_CHANGES'||input.proofOfAddressDocuments.some(document=>['REJECTED','RESUBMISSION_REQUIRED'].includes(document.status))){
 			steps.push({id:'review_identity_feedback',title:'Review identity-verification updates',href:'/kyc'});
-		}else if(!input.verificationSubmitted){
-			steps.push({id:'submit_identity',title:'Submit identity information',href:'/kyc'});
-		}else if(!input.documents.length){
-			steps.push({id:'upload_identity_document',title:'Upload an identity document',href:'/kyc'});
-		}else if(input.kycStatus!=='APPROVED'||!input.documents.some(document=>document.status==='APPROVED')){
-			steps.push({id:'await_identity_review',title:'Check your identity-review status',href:'/kyc'});
+		}else if(input.kycStatus!=='APPROVED'){
+			steps.push({id:'verify_identity_with_didit',title:'Start or continue Didit identity verification',href:'/kyc'});
+		}else if(input.currentTier===2&&!input.addressProvided){
+			steps.push({id:'provide_residential_address',title:'Add your residential address',href:'/settings#profile'});
+		}else if(input.currentTier===2&&!input.proofOfAddressDocuments.some(document=>!['REJECTED','RESUBMISSION_REQUIRED'].includes(document.status))){
+			steps.push({id:'upload_proof_of_address',title:'Upload proof of address',href:'/kyc'});
 		}else if(input.tierRequestStatus==='NEEDS_INFORMATION'){
 			steps.push({id:'provide_tier_information',title:'Respond to the tier-review information request',href:'/tier'});
 		}else if(input.tierRequestStatus==='PENDING_REVIEW'){
@@ -61,8 +61,8 @@ export async function POST(){
 			where:{id:user.id},
 			select:{
 				role:true,status:true,accountMode:true,approvedTier:true,kycStatus:true,name:true,country:true,phone:true,
-				phoneVerified:true,kyc:{select:{submittedAt:true}},
-				kycDocuments:{where:{kind:'IDENTITY_DOCUMENT'},select:{status:true}},
+				phoneVerified:true,kyc:{select:{address:true}},
+				kycDocuments:{where:{kind:'PROOF_OF_ADDRESS'},select:{status:true}},
 			},
 		});
 		if(!profile||profile.role!=='USER'||profile.status!==UserStatus.ACTIVE)return NextResponse.json({error:'This account is unavailable.'},{status:403});
@@ -72,12 +72,11 @@ export async function POST(){
 			select:{status:true},
 		});
 		const requirements=getTierProfileRequirements(profile);
-		const approvedDocuments=profile.kycDocuments.filter(document=>document.status==='APPROVED').length;
 		const tier=getAccountTier({
 			accountMode:profile.accountMode,
 			kycStatus:profile.kycStatus,
-			verificationDocuments:approvedDocuments,
-			verificationSubmitted:!!profile.kyc?.submittedAt,
+			verificationDocuments:0,
+			verificationSubmitted:false,
 			phoneVerified:profile.phoneVerified,
 			profileComplete:requirements.profileComplete,
 			approvedTier:profile.approvedTier,
@@ -87,8 +86,8 @@ export async function POST(){
 			requirements,
 			phoneVerified:profile.phoneVerified,
 			kycStatus:profile.kycStatus,
-			verificationSubmitted:!!profile.kyc?.submittedAt,
-			documents:profile.kycDocuments,
+			addressProvided:Boolean(profile.kyc?.address?.trim()),
+			proofOfAddressDocuments:profile.kycDocuments,
 			currentTier:Number(tier.label.at(-1)),
 			tierRequestStatus:openRequest?.status??null,
 		});

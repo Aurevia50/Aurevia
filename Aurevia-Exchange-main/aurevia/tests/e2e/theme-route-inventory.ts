@@ -2,6 +2,7 @@ export const publicRoutes=[
 	'/',
 	'/about',
 	'/auth/akedly/callback',
+	'/auth/didit/callback',
 	'/client-stories',
 	'/education',
 	'/forgot-password',

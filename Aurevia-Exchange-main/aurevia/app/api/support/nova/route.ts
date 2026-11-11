@@ -47,7 +47,7 @@ export async function POST(request:Request){
 		const userId=session?.user?.id;
 		if(userId)await assertCurrentTermsAccepted(userId);
 		rateLimit(userId?`nova-user:${userId}`:`nova-ip:${clientIp(request)}`,30,60_000);
-		const user=userId?await db.user.findUnique({where:{id:userId},select:{id:true,role:true,status:true,accountMode:true,approvedTier:true,kycStatus:true,name:true,country:true,phone:true,phoneVerified:true,kyc:{select:{submittedAt:true}},kycDocuments:{where:{kind:'IDENTITY_DOCUMENT',status:'APPROVED'},select:{id:true}}}}):null;
+		const user=userId?await db.user.findUnique({where:{id:userId},select:{id:true,role:true,status:true,accountMode:true,approvedTier:true,kycStatus:true,name:true,country:true,phone:true,phoneVerified:true,diditVerificationSessions:{take:1,orderBy:{createdAt:'desc'},select:{status:true,environment:true}},kycDocuments:{where:{kind:'PROOF_OF_ADDRESS'},select:{status:true}}}}):null;
 		if(userId&&(!user||user.status!==UserStatus.ACTIVE||user.role!=='USER'))return NextResponse.json({error:'This account is unavailable.'},{status:403});
 		const orderIntent=parseDemoOrderIntent(input.question);
 		const orderIntentRequested=hasDemoOrderIntent(input.question);
@@ -185,12 +185,15 @@ export async function POST(request:Request){
 				}
 				if(/\btiers?\b/.test(requested)){
 					const requirements=getTierProfileRequirements(user);
-					const tier=getAccountTier({accountMode:user.accountMode,kycStatus:user.accountMode===AccountMode.REAL?user.kycStatus:'PENDING',verificationDocuments:user.accountMode===AccountMode.REAL?user.kycDocuments.length:0,verificationSubmitted:user.accountMode===AccountMode.REAL&&!!user.kyc?.submittedAt,phoneVerified:user.accountMode===AccountMode.REAL&&user.phoneVerified,profileComplete:requirements.profileComplete,approvedTier:user.approvedTier});
+					const tier=getAccountTier({accountMode:user.accountMode,kycStatus:user.accountMode===AccountMode.REAL?user.kycStatus:'PENDING',verificationDocuments:0,verificationSubmitted:false,phoneVerified:user.accountMode===AccountMode.REAL&&user.phoneVerified,profileComplete:requirements.profileComplete,approvedTier:user.approvedTier});
 					answers.push(`Current account tier: ${tier.label}. Tier approval does not enable REAL trading.`);
 					eventTypes.push('TIER_STATUS_LOOKUP');
 				}
 				if(/\bkyc|verification\b/.test(requested)){
-					answers.push(user.accountMode===AccountMode.DEMO?'Identity verification is a REAL account workflow and is unavailable in DEMO mode.':`Recorded identity review status: ${user.kycStatus}; identity profile submitted: ${user.kyc?.submittedAt?'yes':'no'}; approved identity documents on file: ${user.kycDocuments.length}. Nova cannot approve identity checks.`);
+					const didit=user.diditVerificationSessions[0];
+					const diditStatus=didit?`${didit.status} (${didit.environment})`:'no Didit session started';
+					const proofStatuses=user.kycDocuments.map(document=>document.status).join(', ')||'none submitted';
+					answers.push(user.accountMode===AccountMode.DEMO?'Identity verification is a REAL account workflow and is unavailable in DEMO mode.':`Recorded identity review status: ${user.kycStatus}; latest Didit session: ${diditStatus}; proof of address: ${proofStatuses}. Tier 3 also requires verified phone and administrator review. Nova cannot approve identity checks.`);
 					eventTypes.push('KYC_STATUS_LOOKUP');
 				}
 				if(/\btickets?\b/.test(requested)){

@@ -27,48 +27,16 @@ afterEach(()=>{
 	vi.unstubAllEnvs();
 });
 
-describe('Akedly integration readiness',()=>{
-	it('reports missing server-side credentials without attempting a provider request',async()=>{
-		const result=await checkIntegration('akedly');
-
-		expect(result.status).toBe('MISSING_CREDENTIALS');
-		expect(result.canTest).toBe(false);
-		expect(result.detail).toContain('AKEDLY_API_KEY');
-		expect(result.detail).not.toContain('secret');
-	});
-
-	it('does not claim the integration is connected when all credentials are present',async()=>{
+describe('retired Akedly integration',()=>{
+	it('is always marked inactive regardless of retained credentials',async()=>{
 		for(const key of akedlyKeys)vi.stubEnv(key,`test-${key.toLowerCase()}`);
-
+		vi.stubEnv('AKEDLY_ENABLED','true');
 		const result=await checkIntegration('akedly');
 
+		expect(result.name).toBe('Akedly (legacy)');
 		expect(result.status).toBe('DISABLED');
 		expect(result.canTest).toBe(false);
-		expect(result.detail).toContain('AKEDLY_ENABLED=true');
-		expect(result.detail).not.toContain('test-');
-	});
-
-	it('requires explicit enablement after delivery and webhook testing',async()=>{
-		for(const key of akedlyKeys)vi.stubEnv(key,`test-${key.toLowerCase()}`);
-		vi.stubEnv('AKEDLY_ENABLED','true');
-
-		const result=await checkIntegration('akedly');
-
-		expect(result.status).toBe('CONFIGURATION_REQUIRED');
-		expect(result.canTest).toBe(false);
-		expect(result.detail).toContain('controlled email and phone verification');
-	});
-
-	it('reports quote-wrapped credentials as invalid without exposing their values',async()=>{
-		for(const key of akedlyKeys)vi.stubEnv(key,`test-${key.toLowerCase()}`);
-		vi.stubEnv('AKEDLY_ENABLED','true');
-		vi.stubEnv('AKEDLY_WIDGET_SECRET','"test-akedly_widget_secret"');
-
-		const result=await checkIntegration('akedly');
-
-		expect(result.status).toBe('CONFIGURATION_REQUIRED');
-		expect(result.detail).toContain('AKEDLY_WIDGET_SECRET (remove surrounding quotes)');
-		expect(result.detail).not.toContain('test-');
+		expect(result.detail).toContain('historical records');
 	});
 
 	it('recognizes Akedly as a supported administrator integration',()=>{

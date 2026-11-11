@@ -68,6 +68,7 @@ describe('admin Aurevia Exchange ID search',()=>{
 			status:'ACTIVE',
 			kyc:null,
 			kycDocuments:[],
+			diditVerificationSessions:[],
 		}]);
 
 		const response=await GET(new Request('https://aurevia.test/api/admin/users'));

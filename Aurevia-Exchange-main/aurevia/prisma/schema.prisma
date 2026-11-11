@@ -323,6 +323,7 @@ model User {
   termsAcceptedAt                  DateTime?
   kycStatus                        KycStatus                         @default(PENDING)
   kycDocuments                     KycDocument[]
+  diditVerificationSessions        DiditVerificationSession[]
   emailVerifiedAt                  DateTime?
   verifiedAt                       DateTime?
   verifiedChannel                  VerificationChannel?
@@ -730,6 +731,34 @@ model KycProfile {
   submittedAt DateTime?
   reviewedAt  DateTime?
   reviewNote  String?
+}
+
+model DiditVerificationSession {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId       String?  @unique
+  workflowId      String
+  vendorData      String
+  status          String
+  environment     String
+  decision        Json?
+  lastEventAt     DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId, createdAt])
+}
+
+model DiditWebhookEvent {
+  eventId      String   @id
+  sessionId    String
+  webhookType  String
+  createdAt    DateTime
+  receivedAt   DateTime @default(now())
+
+  @@index([sessionId, createdAt])
 }
 
 model KycDocument {

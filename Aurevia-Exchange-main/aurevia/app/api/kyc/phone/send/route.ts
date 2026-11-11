@@ -6,11 +6,9 @@ import {requireUser} from '@/lib/auth';
 import {db} from '@/lib/db';
 import {rateLimit} from '@/lib/rate-limit';
 import {verificationConfig} from '@/lib/config';
-import {hashVerificationCode,hasConfiguredSmsProvider,hasConfiguredTermii,hasConfiguredTwilio,sendTermiiVerificationToken,sendTwilioVerificationCode,TermiiProviderError,TwilioVerifyProviderError} from '@/lib/verification-delivery';
+import {hashVerificationCode,hasConfiguredTermii,hasConfiguredTwilio,sendTermiiVerificationToken,sendTwilioVerificationCode,TermiiProviderError,TwilioVerifyProviderError} from '@/lib/verification-delivery';
 import {isValidE164} from '@/lib/registration-validation';
 import {trustedProxyClientIp} from '@/lib/request-ip';
-import {AkedlyProviderError,akedlyAttemptFailureDiagnostics,akedlyIsConfigured,akedlyReadiness} from '@/lib/akedly';
-import {startAkedlyVerification} from '@/lib/akedly-verification';
 import {isTierThreePhoneVerificationEligible,getTierProfileRequirements} from '@/lib/production-policy';
 import {synchronizeCompletedProfileTier} from '@/lib/tier-progression';
 
@@ -44,73 +42,15 @@ export async function POST(request:Request){
 		if(!phoneVerificationEligible)return NextResponse.json({error:'Complete your name and country in Profile before verifying your phone.'},{status:403});
 		if(current.phone===input.phone&&current.phoneVerified)return NextResponse.json({error:'This phone number is already verified.'},{status:409});
 
-		if(akedlyIsConfigured()&&input.delivery!=='termii'&&input.delivery!=='sms'){
-			const existingChallenge=await db.verificationCode.findUnique({where:{userId:user.id},select:{resendAfter:true}});
-			if(existingChallenge&&existingChallenge.resendAfter>new Date())return NextResponse.json({error:'Please wait before requesting another verification attempt.'},{status:429});
-			try{
-				await db.user.update({where:{id:user.id},data:{phone:input.phone,...(current.phone===input.phone?{}:{phoneVerified:false,phoneVerifiedAt:null})}});
-			}catch(error){
-				if(error instanceof Prisma.PrismaClientKnownRequestError&&error.code==='P2002')return NextResponse.json({error:'This phone number is already associated with another account.'},{status:409});
-				throw error;
-			}
-			try{
-				const attempt=await startAkedlyVerification(user.id,VerificationChannel.SMS,{phoneNumber:input.phone});
-				return NextResponse.json({
-					message:'Complete phone verification in the secure widget. If you cannot receive or complete it, request an SMS code instead.',
-					provider:'akedly',
-					smsFallbackAvailable:hasConfiguredSmsProvider(),
-					resendAfterSeconds:verificationConfig.resendCooldownSeconds,
-					...attempt,
-				},{status:200});
-			}catch(error){
-				if(error instanceof Error&&['AKEDLY_RESEND_COOLDOWN','AKEDLY_ATTEMPT_RESERVATION_LOST'].includes(error.message))throw error;
-				const akedlyFailure=error instanceof Error&&[
-					'AKEDLY_CONFIGURATION_REQUIRED',
-					'AKEDLY_INTEGRATION_DISABLED',
-					'AKEDLY_CONFIGURATION_FAILED',
-					'AKEDLY_REQUEST_SIGNING_FAILED',
-					'AKEDLY_PROVIDER_UNAVAILABLE',
-					'AKEDLY_ATTEMPT_REJECTED',
-					'AKEDLY_INVALID_PROVIDER_RESPONSE',
-					'AKEDLY_INVALID_WIDGET_URL',
-				].includes(error.message);
-				const allowExistingSmsFallback=error instanceof Error&&[
-					'AKEDLY_CONFIGURATION_REQUIRED',
-					'AKEDLY_INTEGRATION_DISABLED',
-					'AKEDLY_CONFIGURATION_FAILED',
-					'AKEDLY_REQUEST_SIGNING_FAILED',
-					'AKEDLY_PROVIDER_UNAVAILABLE',
-					'AKEDLY_ATTEMPT_REJECTED',
-					'AKEDLY_INVALID_PROVIDER_RESPONSE',
-					'AKEDLY_INVALID_WIDGET_URL',
-				].includes(error.message);
-				if(akedlyFailure){
-					const diagnostics=akedlyAttemptFailureDiagnostics(error,input.phone);
-					console.warn('[kyc-phone] Akedly verification attempt failed.',{
-						requestId,
-						referenceId:requestId,
-						endpoint:'/api/kyc/phone/send',
-						...diagnostics,
-						failureTimestamp:error instanceof AkedlyProviderError?error.failureTimestamp:new Date().toISOString(),
-					});
-				}
-				if(!allowExistingSmsFallback||!hasConfiguredSmsProvider())throw error;
-			}
-		}
 		const smsProvider=input.delivery==='termii'
 			?(hasConfiguredTermii()?'termii':null)
 			:hasConfiguredTwilio()?'twilio':hasConfiguredTermii()?'termii':null;
 		if(!smsProvider){
 			if(input.delivery==='termii'){
 				console.warn('[kyc-phone] Requested SMS fallback is not configured.');
-				return NextResponse.json({error:'The requested SMS provider is not configured. No code was sent. Use the secure verification widget or contact support.'},{status:503});
+				return NextResponse.json({error:'The requested SMS provider is not configured. No code was sent. Contact support or try again later.'},{status:503});
 			}
-			const readiness=akedlyReadiness();
-			console.warn('[kyc-phone] No phone verification provider is configured.',{
-				akedlyEnabled:readiness.enabled,
-				missingAkedly:readiness.missing,
-				termiiConfigured:false,
-			});
+			console.warn('[kyc-phone] No SMS provider is configured.');
 			return NextResponse.json({error:'Phone verification is not configured for this service. No code was sent. Contact support instead of retrying.'},{status:503});
 		}
 

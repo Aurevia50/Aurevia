@@ -52,7 +52,7 @@ export async function GET(request:Request){
     };
     const users=await db.user.findMany({
       where,
-      select:{id:true,aureviaExchangeId:true,email:true,name:true,country:true,phone:true,phoneVerified:true,avatarKey:true,approvedTier:true,role:true,status:true,kycStatus:true,accountMode:true,depositEnabled:true,withdrawalEnabled:true,accountRestricted:true,restrictionReason:true,createdAt:true,kyc:{select:{legalName:true,dob:true,address:true,idType:true,idNumber:true,submittedAt:true,reviewedAt:true,reviewNote:true}},kycDocuments:{select:{id:true,kind:true,filename:true,mimeType:true,size:true,status:true,uploadedAt:true,reviewedAt:true,reviewNote:true},orderBy:{uploadedAt:'desc'}}},
+      select:{id:true,aureviaExchangeId:true,email:true,name:true,country:true,phone:true,phoneVerified:true,avatarKey:true,approvedTier:true,role:true,status:true,kycStatus:true,accountMode:true,depositEnabled:true,withdrawalEnabled:true,accountRestricted:true,restrictionReason:true,createdAt:true,kyc:{select:{legalName:true,dob:true,address:true,idType:true,idNumber:true,submittedAt:true,reviewedAt:true,reviewNote:true}},kycDocuments:{select:{id:true,kind:true,filename:true,mimeType:true,size:true,status:true,uploadedAt:true,reviewedAt:true,reviewNote:true},orderBy:{uploadedAt:'desc'}},diditVerificationSessions:{take:1,orderBy:{createdAt:'desc'},select:{sessionId:true,workflowId:true,status:true,environment:true,decision:true,createdAt:true,completedAt:true}}},
       orderBy:{createdAt:'desc'},
       take:search?100:200,
     });
@@ -69,7 +69,8 @@ export async function GET(request:Request){
         accountStatus:user.status,
       });
       const {avatarKey,...safeUser}=user;
-      return {...safeUser,hasAvatar:Boolean(avatarKey),accountTier:tier.label};
+      const {diditVerificationSessions,...userWithoutDiditSessions}=safeUser;
+      return {...userWithoutDiditSessions,diditVerification:diditVerificationSessions[0]||null,hasAvatar:Boolean(avatarKey),accountTier:tier.label};
     });
     return NextResponse.json(usersWithTier,{headers:{'Cache-Control':'private, no-store'}});
   }catch{return NextResponse.json({error:'Forbidden'},{status:403})}
@@ -131,7 +132,7 @@ export async function PATCH(req:Request){
     if(error instanceof Error&&error.message==='ADMIN_ACCOUNT_ISOLATED')return NextResponse.json({error:'Configured administrator accounts are managed separately.'},{status:409});
     if(error instanceof ZodError)return NextResponse.json({error:'Invalid review details.'},{status:400});
     if(error instanceof Error&&error.message==='KYC_STATUS_UNCHANGED')return NextResponse.json({error:'This verification status is already recorded.'},{status:409});
-    if(error instanceof Error&&error.message==='APPROVED_IDENTITY_DOCUMENT_REQUIRED')return NextResponse.json({error:'Approve both a government-issued ID and selfie before approving Tier 2 KYC.'},{status:409});
+    if(error instanceof Error&&error.message==='APPROVED_IDENTITY_DOCUMENT_REQUIRED')return NextResponse.json({error:'Legacy manual identity approval requires an identity document and selfie. New identity checks use Didit.'},{status:409});
     return NextResponse.json({error:'Unable to update this account.'},{status:400});
   }
 }

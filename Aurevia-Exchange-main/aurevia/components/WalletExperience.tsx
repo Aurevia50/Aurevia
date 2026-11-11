@@ -150,7 +150,7 @@ export default function WalletExperience(){
 		:currentDisplayRate!==null
 			?`Approximate display · USD ledger · 1 USD = ${currentDisplayRate.toLocaleString(undefined,{maximumSignificantDigits:8})} ${displayCurrency}${currencyRate?.status==='STALE'?' · rate may be outdated':''}.`
 			:currencyError||`Loading ${displayCurrency} rate…`;
-	const realKycApproved=profile?.kycStatus==='APPROVED'&&profile.documents>0&&profile.verificationProfileSubmitted;
+	const realKycApproved=profile?.kycStatus==='APPROVED'&&profile.verificationProfileSubmitted;
 	const realWithdrawalKycBlocked=data.accountMode==='REAL'&&!!profile&&!realKycApproved;
 	const realWithdrawalBlocked=data.accountMode==='REAL'&&!!profile&&(!profile.withdrawalEnabled||profile.accountRestricted);
 	const load=useCallback(async(showLoading=false)=>{
@@ -309,7 +309,11 @@ export default function WalletExperience(){
 			const result=await response.json();
 			if(!response.ok)throw new Error(result.error||'Unable to submit this request.');
 			setSubmittedReceipt(result as FundingRecord);
-			setMessage(response.status===200?`Request already exists · ${String(result.status).replaceAll('_',' ')}.`:'Request submitted for review.');
+			setMessage(response.status===200
+				?`Request already exists · ${String(result.status).replaceAll('_',' ')}.`
+				:type==='DEPOSIT'
+					?'Request submitted for administrator review. The ledger has not been posted.'
+					:'Withdrawal request submitted for administrator review. No external payout has been initiated.');
 			setAmount('');setTransactionReference('');setNote('');setProofFile(null);setIdempotencyKey('');setKeyFingerprint('');setConfirming(false);setReauthPassword('');
 			await load();
 		}catch(exception){setError(exception instanceof Error?exception.message:'Unable to submit this request.');}

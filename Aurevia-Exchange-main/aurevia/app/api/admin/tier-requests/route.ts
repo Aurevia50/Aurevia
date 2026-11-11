@@ -91,9 +91,6 @@ export async function PATCH(request:Request){
 					profileComplete:requirements.profileComplete,
 					phoneVerified:profile.phoneVerified,
 					kycStatus:profile.kycStatus,
-					verificationSubmitted:!!profile.kyc?.submittedAt,
-					approvedIdentityDocuments:approvedDocuments,
-					approvedSelfies:profile.kycDocuments.filter(document=>document.kind==='SELFIE'&&document.status==='APPROVED').length,
 					approvedProofOfAddress:profile.kycDocuments.filter(document=>document.kind==='PROOF_OF_ADDRESS'&&document.status==='APPROVED').length,
 					addressProvided:Boolean(profile.kyc?.address?.trim()),
 				});
@@ -123,7 +120,7 @@ export async function PATCH(request:Request){
 		if(error instanceof Error&&error.message==='REQUEST_CHANGED')return NextResponse.json({error:'This request changed during review. Refresh the queue before deciding.'},{status:409});
 		if(error instanceof Error&&error.message==='TIER_REQUEST_STALE')return NextResponse.json({error:'The account tier changed after this request. Refresh the review queue before deciding.'},{status:409});
 		if(error instanceof Error&&error.message==='TIER_2_AUTOMATIC')return NextResponse.json({error:'Tier 2 is granted automatically when the profile is complete; only Tier 3 requires administrator approval.'},{status:409});
-		if(error instanceof Error&&error.message==='TIER_3_REQUIREMENTS_NOT_MET')return NextResponse.json({error:'Tier 3 approval requires a complete profile, approved Tier 2 KYC, an approved ID and selfie, phone verification, a residential address, and approved proof of address.'},{status:409});
+		if(error instanceof Error&&error.message==='TIER_3_REQUIREMENTS_NOT_MET')return NextResponse.json({error:'Tier 3 approval requires a complete profile, Didit-approved identity, phone verification, a residential address, and approved proof of address.'},{status:409});
 		console.error('Administrator tier review failed.',{errorType:error instanceof Error?error.name:'UnknownError'});
 		return NextResponse.json({error:'Unable to update the tier request.'},{status:503});
 	}

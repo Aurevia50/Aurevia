@@ -15,6 +15,7 @@ describe('production account policy',()=>{
     const verified=getAccountTier({accountMode:AccountMode.REAL,kycStatus:KycStatus.APPROVED,verificationDocuments:1,verificationSubmitted:true,phoneVerified:true,profileComplete:true,approvedTier:3});
     expect(verified.label).toBe('TIER 3');
     expect(verified.eligibleForRealTrading).toBe(true);
+    expect(getAccountTier({accountMode:AccountMode.REAL,kycStatus:KycStatus.APPROVED,verificationDocuments:0,verificationSubmitted:false,phoneVerified:true,profileComplete:true,approvedTier:3}).label).toBe('TIER 3');
     expect(getAccountTier({accountMode:AccountMode.REAL,kycStatus:KycStatus.APPROVED,verificationDocuments:1,verificationSubmitted:false,phoneVerified:true,profileComplete:true}).label).toBe('TIER 2');
     expect(getAccountTier({accountMode:AccountMode.REAL,kycStatus:KycStatus.APPROVED,verificationDocuments:1,verificationSubmitted:true,phoneVerified:false,profileComplete:true}).label).toBe('TIER 2');
     expect(getAccountTier({accountMode:AccountMode.REAL,kycStatus:KycStatus.APPROVED,verificationDocuments:1,verificationSubmitted:true,phoneVerified:true,profileComplete:false,approvedTier:3}).label).toBe('TIER 1');
@@ -48,10 +49,10 @@ describe('production account policy',()=>{
   it('rejects stale tier reviews and requires approved identity evidence for Tier 3',()=>{
     expect(()=>validateTierUpgradeApproval({requestCurrentTier:2,requestedTier:3,currentTier:2})).not.toThrow();
     expect(()=>validateTierUpgradeApproval({requestCurrentTier:2,requestedTier:3,currentTier:3})).toThrow('TIER_REQUEST_STALE');
-    const completeTierThree={profileComplete:true,phoneVerified:true,kycStatus:KycStatus.APPROVED,verificationSubmitted:true,approvedIdentityDocuments:1,approvedSelfies:1,approvedProofOfAddress:1,addressProvided:true};
+    const completeTierThree={profileComplete:true,phoneVerified:true,kycStatus:KycStatus.APPROVED,approvedProofOfAddress:1,addressProvided:true};
     expect(()=>validateTierThreeApproval(completeTierThree)).not.toThrow();
     expect(()=>validateTierThreeApproval({...completeTierThree,approvedProofOfAddress:0})).toThrow('TIER_3_REQUIREMENTS_NOT_MET');
-    expect(()=>validateTierThreeApproval({ ...completeTierThree,profileComplete:false,phoneVerified:false,kycStatus:KycStatus.PENDING,approvedIdentityDocuments:0})).toThrow('TIER_3_REQUIREMENTS_NOT_MET');
+    expect(()=>validateTierThreeApproval({ ...completeTierThree,profileComplete:false,phoneVerified:false,kycStatus:KycStatus.PENDING})).toThrow('TIER_3_REQUIREMENTS_NOT_MET');
   });
 
   it('rejects withdrawal when disabled, restricted, or before the first completed investment',()=>{

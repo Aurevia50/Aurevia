@@ -30,5 +30,6 @@ describe('theme route coverage inventory',()=>{
 		expect(themeRouteGroups.authenticated).toContain('/wallet/transactions/[id]');
 		expect(themeRouteGroups.admin).toContain('/admin/news-feed');
 		expect(themeRouteGroups.public).toContain('/auth/akedly/callback');
+		expect(themeRouteGroups.public).toContain('/auth/didit/callback');
 	});
 });

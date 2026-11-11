@@ -32,9 +32,14 @@ const viewports=[
 const appOrigin=process.env.AUREVIA_E2E_APP_URL||'http://127.0.0.1:4310';
 
 async function revealSupportChat(page:Page){
+	const launcher=page.getByRole('button',{name:/Open chat support/});
 	const peek=page.getByRole('button',{name:'Show chat support'});
-	if(await peek.isVisible())await peek.click();
-	return page.getByRole('button',{name:/Open chat support/});
+	await expect(peek.or(launcher)).toBeVisible();
+	if(await launcher.isVisible())return launcher;
+	await expect(peek).toBeVisible();
+	await peek.click();
+	await expect(launcher).toBeVisible();
+	return launcher;
 }
 
 test.afterEach(async()=>{
@@ -61,7 +66,6 @@ async function createIsolatedDemoUser(label:string,options:{acceptTerms?:boolean
 		status:'ACTIVE',
 	}});
 	await db.$transaction(tx=>initializeDemoAccount(tx,user.id));
-	return {email:user.email,password};
 	if(options.acceptTerms!==false){
 		const currentTerms=await db.managedNotice.findFirst({
 			where:currentMandatoryTermsWhere(),
@@ -70,13 +74,13 @@ async function createIsolatedDemoUser(label:string,options:{acceptTerms?:boolean
 		});
 		await db.termsAcceptance.create({data:{userId:user.id,version:currentTerms?.version||CURRENT_TERMS_VERSION}});
 	}
+	return {email:user.email,password};
 }
 
 function depositPostOptions(idempotencyKey:string,payload:Record<string,unknown>){
 	return {headers:{'Idempotency-Key':idempotencyKey},multipart:{payload:JSON.stringify(payload),evidence:{name:'payment.png',mimeType:'image/png',buffer:PNG.sync.write(new PNG({width:1,height:1}))}}};
 }
 
-async function typeInto(page:import('@playwright/test').Page,field:import('@playwright/test').Locator,value:string){
 test('current terms acceptance is explicit and persists across refresh, login, and devices',async({browser,page})=>{
 	const user=await createIsolatedDemoUser('terms-first-visit',{acceptTerms:false});
 	await page.setViewportSize({width:320,height:800});
@@ -179,6 +183,7 @@ test('updated terms require a separate acceptance and preserve the previous vers
 	}
 });
 
+async function typeInto(page:import('@playwright/test').Page,field:import('@playwright/test').Locator,value:string){
 	await field.click();
 	await expect.poll(()=>field.evaluate(element=>document.activeElement===element)).toBe(true);
 	await page.keyboard.insertText(value);
@@ -315,7 +320,7 @@ test('provider health distinguishes sandbox routing from disabled live services'
 	await expect(page.getByText(/When enabled, REAL-mode orders use this shared Alpaca sandbox account/)).toBeVisible();
 });
 
-test('users can submit all Tier 3 requirements before administrator KYC review',async({page})=>{
+test('Didit is the active identity flow and legacy manual submissions are retired',async({page})=>{
 	await loginAs(page,fixture('USER_EMAIL'),fixture('USER_PASSWORD'));
 	await page.goto('/kyc');
 	await expect(page.getByRole('heading',{name:'REAL mode required'})).toBeVisible();
@@ -326,9 +331,24 @@ test('users can submit all Tier 3 requirements before administrator KYC review',
 	await expect(page.getByRole('progressbar',{name:'Account tier progression'})).toBeVisible();
 	await selectAccountMode(page,'REAL');
 	await page.goto('/kyc');
-	await expect(page.getByRole('heading',{name:'KYC tier requirements'})).toBeVisible();
-	await expect(page.getByText(/This flow does not run automated face matching or liveness detection/)).toBeVisible();
-	await expect(page.getByRole('option',{name:'Selfie for manual review'})).toBeAttached();
+	await expect(page.getByRole('heading',{name:'Didit identity verification'})).toBeVisible();
+	await expect(page.getByRole('checkbox')).not.toBeChecked();
+	await expect(page.getByRole('button',{name:'Start Didit verification'})).toBeDisabled();
+	await page.getByRole('checkbox').check();
+	await expect(page.getByRole('button',{name:'Start Didit verification'})).toBeEnabled();
+	const legacySubmission=await page.request.post('/api/kyc',{data:{
+		legalName:'Manual submission must be retired',
+		dob:'1990-01-01',
+		address:'123 Test Street',
+		idType:'PASSPORT',
+		idNumber:`E2E-${randomUUID()}`,
+	}});
+	expect(legacySubmission.status()).toBe(410);
+	const legacyDocument=await page.request.post('/api/kyc/documents',{multipart:{
+		kind:'IDENTITY_DOCUMENT',
+		file:{name:'identity.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4\\nManual ID upload must be retired\\n%%EOF\\n')},
+	}});
+	expect(legacyDocument.status()).toBe(410);
 });
 
 test('market view labels internal reference prices when no live provider is configured',async({page})=>{
@@ -649,7 +669,7 @@ test('password reset consumes a database token and changes the account password'
 	await page.getByLabel('Password',{exact:true}).fill('ChangedPassword1');
 	await page.getByRole('button',{name:'Sign in'}).click();
 	await page.waitForURL(url=>url.pathname==='/wallet/transactions'&&url.searchParams.get('tab')==='history');
-	await expect(page.getByRole('heading',{name:/Transaction history/i})).toBeVisible();
+	await expect(page.getByRole('heading',{level:1,name:'Transaction history',exact:true})).toBeVisible();
 	const policyAcceptance=await page.request.get('/api/policy-consent').then(response=>response.json());
 	if(!policyAcceptance.accepted){
 		const accepted=await page.request.post('/api/policy-consent',{data:{version:policyAcceptance.version,accepted:true}});
@@ -1463,6 +1483,7 @@ test('account-mode changes initialize and isolate wallet, trade, history, and su
 	await expect(page.locator('.wallet-balance-value')).toHaveText('$0.00');
 	await page.goto('/wallet/transactions');
 	await expect(page.locator('.account-heading .status-pill')).toContainText('REAL ACCOUNT');
+	await page.getByRole('button',{name:'View history'}).click();
 	await expect(page.getByText('No transactions yet')).toBeVisible();
 	await selectAccountMode(page,'DEMO');
 	await expect(page.locator('.account-heading .status-pill')).toContainText('DEMO ACCOUNT');
@@ -1559,8 +1580,8 @@ test('REAL funding remains available while trading stays disabled without broker
 		expect(configuredRate).toMatchObject({rate:'0.8',source:'E2E configured rate',status:'CURRENT'});
 		await page.goto('/wallet');
 		await page.locator('details.wallet-settings > summary').click();
-		await expect(page.getByText('Reference rate: 1 USD = 0.8 GBP')).toBeVisible();
-		await expect(page.getByText(/Approximate display: £0\.00/)).toBeVisible();
+		await expect(page.getByText('Approximate display · USD ledger · 1 USD = 0.8 GBP.')).toBeVisible();
+		await expect(page.locator('.wallet-balance-value')).toHaveText(/£0\.00/);
 	}finally{
 		await page.request.patch('/api/currency-preference',{data:{currency:'USD'}});
 		if(previousGbpRate)await db.exchangeRate.update({where:{baseCurrency_quoteCurrency:{baseCurrency:'USD',quoteCurrency:'GBP'}},data:{rate:previousGbpRate.rate,source:previousGbpRate.source,observedAt:previousGbpRate.observedAt}});
@@ -2117,7 +2138,7 @@ test('Nova escalation reaches admin and admin response appears with notification
 test('profile completion and administrator identity review progress the account through all tiers',async({browser,page})=>{
 	const user=await createIsolatedDemoUser('tier-progression');
 	await loginAs(page,user.email,user.password);
-	const profileUpdate=await page.request.patch('/api/profile',{data:{name:'Profile Complete User',country:'United States',phone:'+14155552671'}});
+	const profileUpdate=await page.request.patch('/api/profile',{data:{name:'Profile Complete User',country:'United States',address:'123 Test Street, Test City',phone:'+14155552671'}});
 	expect(profileUpdate.ok()).toBe(true);
 	const forgedTier=await page.request.patch('/api/profile',{data:{name:'Profile Complete User',approvedTier:3}});
 	expect(forgedTier.ok()).toBe(true);
@@ -2147,25 +2168,29 @@ test('profile completion and administrator identity review progress the account 
 	const isolated=await db.user.findUniqueOrThrow({where:{email:user.email},select:{id:true}});
 	const submittedAt=new Date();
 	await db.user.update({where:{id:isolated.id},data:{phoneVerified:true,phoneVerifiedAt:submittedAt}});
-	const kycSubmission=await page.request.post('/api/kyc',{data:{
-		legalName:'Profile Complete User',
-		dob:'1990-01-01',
-		address:'123 Test Street, Test City',
-		idType:'PASSPORT',
-		idNumber:`E2E-${randomUUID()}`,
-	}});
-	expect(kycSubmission.ok()).toBe(true);
-	const documentBytes=Buffer.from('%PDF-1.4\n% KYC E2E document\n');
-	for(const kind of ['IDENTITY_DOCUMENT','SELFIE','PROOF_OF_ADDRESS']){
-		const documentUpload=await page.request.post('/api/kyc/documents',{multipart:{
-			kind,
-			file:{name:`${kind.toLowerCase()}.pdf`,mimeType:'application/pdf',buffer:documentBytes},
+	const diditSessionId=`didit-e2e-${randomUUID()}`;
+	await db.$transaction(async tx=>{
+		await tx.diditVerificationSession.create({data:{
+			userId:isolated.id,
+			sessionId:diditSessionId,
+			workflowId:'e2e-workflow',
+			vendorData:isolated.id,
+			status:'APPROVED',
+			environment:'live',
+			decision:{session_id:diditSessionId,workflow_id:'e2e-workflow',vendor_data:isolated.id,status:'Approved'},
+			completedAt:submittedAt,
 		}});
-		expect(documentUpload.status()).toBe(201);
-	}
+		await tx.user.update({where:{id:isolated.id},data:{kycStatus:'APPROVED',verifiedAt:submittedAt}});
+	});
+	const documentBytes=Buffer.from('%PDF-1.4\n% KYC E2E document\n');
+	const documentUpload=await page.request.post('/api/kyc/documents',{multipart:{
+		kind:'PROOF_OF_ADDRESS',
+		file:{name:'proof-of-address.pdf',mimeType:'application/pdf',buffer:documentBytes},
+	}});
+	expect(documentUpload.status()).toBe(201);
 	const eligibility=await page.request.get('/api/tier-requests').then(response=>response.json());
 	expect(eligibility.canRequest).toBe(true);
-	expect(eligibility.requirements.identityApproved).toBe(false);
+	expect(eligibility.requirements.identityApproved).toBe(true);
 	expect(eligibility.requirements.identityDocumentApproved).toBe(false);
 	const submittedRequest=await page.request.post('/api/tier-requests',{data:{message:'Isolated tier progression review.'}});
 	expect(submittedRequest.status()).toBe(201);
@@ -2176,16 +2201,15 @@ test('profile completion and administrator identity review progress the account 
 	await loginAs(adminPage,fixture('ADMIN_EMAIL'),fixture('ADMIN_PASSWORD'));
 	const prematureApproval=await adminPage.request.patch('/api/admin/tier-requests',{data:{id:requestRecord.id,status:'APPROVED',reason:'Must wait for evidence review.'}});
 	expect(prematureApproval.status()).toBe(409);
-	const informationNeeded=await adminPage.request.patch('/api/admin/tier-requests',{data:{id:requestRecord.id,status:'NEEDS_INFORMATION',reason:'Please confirm the identity record.'}});
+	const informationNeeded=await adminPage.request.patch('/api/admin/tier-requests',{data:{id:requestRecord.id,status:'NEEDS_INFORMATION',reason:'Please confirm the Didit decision.'}});
 	expect(informationNeeded.ok()).toBe(true);
-	const userReply=await page.request.patch('/api/tier-requests',{data:{id:requestRecord.id,message:'The submitted identity record is accurate.'}});
+	const userReply=await page.request.patch('/api/tier-requests',{data:{id:requestRecord.id,message:'The Didit decision is accurate.'}});
 	expect(userReply.ok()).toBe(true);
 	await db.$transaction(async tx=>{
-		await tx.user.update({where:{id:isolated.id},data:{kycStatus:'APPROVED',verifiedAt:submittedAt}});
 		await tx.kycProfile.update({where:{userId:isolated.id},data:{reviewedAt:submittedAt}});
 		await tx.kycDocument.updateMany({where:{userId:isolated.id,status:'SUBMITTED'},data:{status:'APPROVED',reviewedAt:submittedAt}});
 	});
-	const approved=await adminPage.request.patch('/api/admin/tier-requests',{data:{id:requestRecord.id,status:'APPROVED',reason:'Identity record reviewed in the isolated test.'}});
+	const approved=await adminPage.request.patch('/api/admin/tier-requests',{data:{id:requestRecord.id,status:'APPROVED',reason:'Didit result and proof of address reviewed in the isolated test.'}});
 	expect(approved.ok()).toBe(true);
 	await adminPage.goto('/admin/tiers');
 	await expect(adminPage.getByRole('heading',{name:'Tier management'})).toBeVisible();
@@ -2871,6 +2895,7 @@ test('display currency preference persists across account and activity surfaces 
 	await page.goto('/activity');
 	await expect(page.getByLabel('Preferred display currency')).toHaveValue('EUR');
 	await page.goto('/wallet/transactions');
+	await page.getByRole('button',{name:'View history'}).click();
 	await expect(page.getByLabel('Preferred display currency')).toHaveValue('EUR');
 	const demoBalanceAfter=Number((await page.request.get('/api/wallet').then(response=>response.json())).balance);
 	expect(demoBalanceAfter).toBe(balanceBefore);
@@ -3137,14 +3162,28 @@ test('KYC access is owner-scoped and unavailable signed Storage access fails clo
 			kind:'IDENTITY_DOCUMENT',
 			file:{name:'approved-e2e.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4\\nApproved account upload must be blocked\\n%%EOF\\n')},
 		}});
-		expect(approvedUpload.status()).toBe(409);
+		expect(approvedUpload.status()).toBe(410);
 		expect((await investorPage.request.get('/api/kyc/documents').then(response=>response.json()))).toHaveLength(documents.length);
 	}finally{await investorContext.close();}
-	await db.user.update({where:{email:pendingUser.email},data:{accountMode:'REAL'}});
+	const pendingUserRecord=await db.user.findUniqueOrThrow({where:{email:pendingUser.email},select:{id:true}});
+	await db.$transaction(async tx=>{
+		await tx.user.update({where:{id:pendingUserRecord.id},data:{accountMode:'REAL',approvedTier:2,kycStatus:'APPROVED',phoneVerified:true,verifiedAt:new Date()}});
+		await tx.kycProfile.upsert({where:{userId:pendingUserRecord.id},update:{address:'123 E2E Proof Street'},create:{userId:pendingUserRecord.id,address:'123 E2E Proof Street'}});
+		await tx.diditVerificationSession.create({data:{
+			userId:pendingUserRecord.id,
+			sessionId:`didit-e2e-${randomUUID()}`,
+			workflowId:'e2e-workflow',
+			vendorData:pendingUserRecord.id,
+			status:'APPROVED',
+			environment:'live',
+			decision:{status:'Approved'},
+			completedAt:new Date(),
+		}});
+	});
 	const pendingDocuments=await page.request.get('/api/kyc/documents').then(response=>response.json());
 	const upload=await page.request.post('/api/kyc/documents',{multipart:{
-		kind:'IDENTITY_DOCUMENT',
-		file:{name:'temporary-e2e.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4\\nDisposable E2E document\\n%%EOF\\n')},
+		kind:'PROOF_OF_ADDRESS',
+		file:{name:'temporary-proof-of-address.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4\\nDisposable E2E proof of address\\n%%EOF\\n')},
 	}});
 	expect(upload.status()).toBe(201);
 	expect((await page.request.get('/api/kyc/documents').then(response=>response.json()))).toHaveLength(pendingDocuments.length+1);

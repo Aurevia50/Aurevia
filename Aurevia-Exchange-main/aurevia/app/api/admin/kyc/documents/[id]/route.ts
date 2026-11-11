@@ -35,12 +35,16 @@ export async function PATCH(request:Request,{params}:{params:Promise<{id:string}
    if(current.status===input.status&&current.reviewNote===(input.reviewNote||null))throw new Error('DOCUMENT_REVIEW_UNCHANGED');
    const now=new Date();
    const document=await tx.kycDocument.update({where:{id:current.id},data:{status:input.status,reviewedAt:now,reviewNote:input.reviewNote||null}});
-   if(input.status==='RESUBMISSION_REQUIRED'){
+   if(input.status==='RESUBMISSION_REQUIRED'&&current.kind!=='PROOF_OF_ADDRESS'){
+    const hasDiditSession=await tx.diditVerificationSession.findFirst({where:{userId:current.userId},select:{id:true}});
+    if(!hasDiditSession){
     await tx.user.update({where:{id:current.userId},data:{kycStatus:'NEEDS_CHANGES'}});
     await tx.kycProfile.updateMany({where:{userId:current.userId},data:{reviewedAt:now,reviewNote:input.reviewNote||null}});
+    }
    }
    await tx.auditLog.create({data:{actorId:admin.id,action:`KYC_DOCUMENT_${input.status}`,entity:'KYC_DOCUMENT',entityId:current.id,metadata:{userId:current.userId,kind:current.kind,reviewNote:input.reviewNote||null}}});
-   await createNotification(tx,{userId:current.userId,type:NotificationType.KYC,title:input.status==='APPROVED'?'Identity document approved':input.status==='RESUBMISSION_REQUIRED'?'Identity document needs replacement':'Identity document reviewed',message:`Your ${current.kind.toLowerCase().replaceAll('_',' ')} was marked ${input.status.toLowerCase().replaceAll('_',' ')}.${input.reviewNote?` Admin note: ${input.reviewNote}`:''}`,dedupeKey:`kyc-document:${current.id}:${input.status}:${now.toISOString()}`,actionUrl:'/kyc'});
+   const documentLabel=current.kind==='PROOF_OF_ADDRESS'?'Proof of address':'Identity document';
+   await createNotification(tx,{userId:current.userId,type:NotificationType.KYC,title:input.status==='APPROVED'?`${documentLabel} approved`:input.status==='RESUBMISSION_REQUIRED'?`${documentLabel} needs replacement`:`${documentLabel} reviewed`,message:`Your ${current.kind.toLowerCase().replaceAll('_',' ')} was marked ${input.status.toLowerCase().replaceAll('_',' ')}.${input.reviewNote?` Admin note: ${input.reviewNote}`:''}`,dedupeKey:`kyc-document:${current.id}:${input.status}:${now.toISOString()}`,actionUrl:'/kyc'});
    const documentEmailEvent:Record<'APPROVED'|'REJECTED'|'RESUBMISSION_REQUIRED'|'UNDER_REVIEW',KycEmailEvent>={
     APPROVED:'DOCUMENT_APPROVED',
     REJECTED:'DOCUMENT_REJECTED',
@@ -70,7 +74,8 @@ export async function DELETE(request:Request,{params}:{params:Promise<{id:string
    const current=await tx.kycDocument.findUnique({where:{id},select:{id:true,userId:true,kind:true,storageKey:true,status:true}});
    if(!current)throw new Error('DOCUMENT_NOT_FOUND');
    await tx.kycDocument.delete({where:{id:current.id}});
-   if(current.status==='APPROVED'&&(current.kind==='IDENTITY_DOCUMENT'||current.kind==='SELFIE')){
+   const hasDiditSession=await tx.diditVerificationSession.findFirst({where:{userId:current.userId},select:{id:true}});
+   if(!hasDiditSession&&current.status==='APPROVED'&&(current.kind==='IDENTITY_DOCUMENT'||current.kind==='SELFIE')){
     const remaining=await tx.kycDocument.findMany({where:{userId:current.userId,kind:{in:['IDENTITY_DOCUMENT','SELFIE']},status:'APPROVED'},select:{kind:true}});
     if(!remaining.some(document=>document.kind==='IDENTITY_DOCUMENT')||!remaining.some(document=>document.kind==='SELFIE')){
      await tx.user.update({where:{id:current.userId},data:{kycStatus:'PENDING',verifiedAt:null}});
