@@ -21,7 +21,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.13.1
+          node-version-file: Aurevia-Exchange-main/aurevia/.node-version
           cache: npm
           cache-dependency-path: Aurevia-Exchange-main/aurevia/package-lock.json
 
@@ -39,6 +39,9 @@ jobs:
 
       - name: Install Chromium and Linux dependencies
         run: npm run browsers:install -- --with-deps
+
+      - name: Verify the project toolchain
+        run: npm run tools:verify
 
       - name: Run isolated Playwright tests
         run: npm run test:e2e:isolated

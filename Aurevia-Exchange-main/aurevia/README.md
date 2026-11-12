@@ -95,19 +95,65 @@ New REAL-mode identity-verification sessions use Didit’s hosted KYC flow. Aure
 
 ## Requirements
 
-- Node.js >=22.19 and <23
-- Docker Desktop or PostgreSQL 15+
-- npm
+- Linux, macOS, or Windows through WSL2. Native Windows setup is not supported by the project shell scripts.
+- Node.js **22.19.0**, pinned in `.node-version`; `package.json` accepts Node.js `>=22.19.0 <23`.
+- npm 10.x, bundled with the pinned Node.js runtime.
+- Docker Engine with Docker Compose v2 is required only for isolated Playwright tests and optional Compose workflows.
 
-## Project-local browser tools
+## Development setup
 
-From `aurevia/`, run `npm run tools:install` to install the locked application/dev dependencies and download Chromium into `tools/playwright/browsers/`. The `tools:verify` command prints the installed tool versions and local Chromium executable path, then launches Chromium headlessly. After a Codespaces rebuild, rerun `npm run tools:install`; the browser binary cache is intentionally ignored by Git and is restored by that command. A Codespace created from this repository also runs the install command automatically after container creation.
+The canonical tool inventory is [`tools/toolchain.json`](tools/toolchain.json). It records versions, purposes, installation and verification steps, and the environments where each tool is used. Project-local versions are locked by `package-lock.json`; no global JavaScript packages are needed.
 
-The repository devcontainer enables Docker CLI access to the Codespaces host Docker engine through the Docker-outside-of-Docker feature. Rebuild the devcontainer after changing its configuration, then verify `docker --version` and `docker compose version`. Docker Engine is supplied by the Codespaces host; it is not installed or bundled in the repository.
+From a fresh clone or extracted ZIP, open a terminal in `Aurevia-Exchange-main/aurevia` (the directory containing `package.json`). Install and select Node.js 22.19.0 using your existing version manager; for nvm, for example:
 
-On Linux, if the browser launch check reports missing shared libraries, run `npm run tools:install -- --with-deps` to install Playwright's documented OS packages as well as the browser. OS libraries are installed on the host/container, not stored in the repository. Browser smoke testing requires an already-running Aurevia server with its isolated/test database available: `npm run test:browser:smoke -- http://127.0.0.1:4310`. It checks the homepage in Chromium and the application's database-backed health endpoint. `npm run test:e2e:isolated` runs the full Playwright suite against its disposable local database.
+```sh
+git clone https://github.com/stevenken161-cloud/Aurevia.git
+cd Aurevia/Aurevia-Exchange-main/aurevia
+nvm install 22.19.0
+nvm use 22.19.0
+node --version
+npm --version
+npm run setup
+npm run tools:verify
+```
 
-Browser binaries are not installed during `npm ci`, `npm run build`, or Render deployment. Keep `tools:install` and browser smoke/E2E commands for local development, Codespaces, or CI; this avoids adding browser binaries to production deployments.
+The setup command checks the exact pinned runtime and npm 10.x, installs dependencies with `npm ci --include=dev`, generates Prisma Client, installs the Playwright-managed Chromium and available Linux system dependencies, validates the tool manifest and verifies a headless browser launch. Linux system libraries are installed only when root or passwordless sudo is available; otherwise setup prints the authorized manual command. To explicitly request Linux system dependencies, use `npm run setup -- --with-deps`. Firefox and WebKit are optional: `npm run browsers:install -- --all`.
+
+The repository-root `.devcontainer/devcontainer.json` pins Node.js 22.19.0, provides Docker CLI access in Codespaces, and runs the same setup command after creation. Rebuild the container after configuration changes. Git is needed for cloning and contribution workflows but not for a ZIP download. The PostgreSQL test image provides `psql` and `pg_isready`; host-installed PostgreSQL client utilities are not required.
+
+Copy `.env.example` to `.env` without overwriting an existing local file (`cp -n .env.example .env` on Linux/macOS/WSL2) and configure only local development values. Use a disposable local PostgreSQL database; never use production database URLs or credentials in local setup, tests, or builds. Setup does not read or require production credentials and does not run database migrations. Configure application integrations only when needed.
+
+```sh
+# Verify locked local tools and Chromium
+npm run tools:verify
+
+# Generate Prisma Client without connecting to a database
+npm run db:generate
+
+# Start the local application (requires suitable local environment configuration)
+npm run dev
+
+# Unit/API tests, type checking, and lint
+npm test
+npm run typecheck
+npm run lint
+
+# Full browser suite: Docker starts a disposable loopback-only PostgreSQL 16 database
+npm run test:e2e:isolated
+
+# Production build (does not apply migrations)
+npm run build
+```
+
+If Chromium reports missing Linux shared libraries, run `npm run browsers:install -- --with-deps` from an authorized account. The browser cache under `tools/playwright/browsers/` is machine-specific, ignored by Git, and is recreated by setup; browser binaries are not included in production builds or Render deployment artifacts. Browser smoke testing requires an already-running Aurevia server with its isolated/test database available: `npm run test:browser:smoke -- http://127.0.0.1:4310`.
+
+## Tool cleanup audit
+
+- Removed `scripts/install-tools.sh`; its dependency/browser/verification orchestration is now the single `npm run setup` entry point.
+- Removed `scripts/verify-tools.sh`; `npm run tools:verify` now validates the authoritative manifest and installed locked packages directly.
+- Relocated the misplaced nested Codespaces config to repository-root `.devcontainer/devcontainer.json`, where Codespaces discovers it, and pinned its Node feature to `.node-version`.
+- Retained `scripts/install-browsers.sh` because CI and optional Firefox/WebKit setup use it; retained Prisma, Playwright, Vitest, TypeScript, ESLint, Docker/Compose, Render, integrations, and deployment configuration.
+- No application dependencies, provider integrations, database migrations, or production configuration were removed. The repository has no separate formatter tool.
 
 ## Isolated browser tests
 
@@ -279,11 +325,11 @@ For a real deployment, use a unique high-entropy `NEXTAUTH_SECRET`, a strong adm
 ## Local setup
 
 ```bash
-npm install
-cp .env.example .env
+npm run setup
+cp -n .env.example .env
 # For the local Postgres container, set DATABASE_URL and DIRECT_URL to its connection URL.
 docker compose up -d postgres
-npx prisma generate
+npm run db:generate
 npm run db:migrate
 npm run db:seed
 npm run typecheck
@@ -470,7 +516,7 @@ The current source includes:
 
 ## Verification evidence
 
-Run verification from `aurevia/` with `npm run test:all`, `npm run tools:verify`, and `npm run build`. The E2E runner provisions and removes a disposable loopback-only PostgreSQL database; it clears shared database and Supabase credentials before starting the application. Chromium binaries are restored by `npm run tools:install` and remain ignored by Git.
+Run verification from the application directory with `npm run test:all`, `npm run tools:verify`, and `npm run build`. The E2E runner provisions and removes a disposable loopback-only PostgreSQL database; it clears shared database and Supabase credentials before starting the application. Chromium binaries are restored by `npm run setup` and remain ignored by Git.
 
 The automated suite uses Vitest for unit/API tests and Playwright for browser flows, route/theme/responsive checks, and axe accessibility scans. Playwright remains single-worker because its financial and authentication fixtures share mutable state. Chromium is the default browser; run `npm run browsers:install -- --all` to install Firefox/WebKit. `npm run test:e2e:all-browsers` runs Chromium, Firefox, and WebKit sequentially, each against a fresh disposable database so financial fixtures cannot leak state between browsers. CI uploads HTML reports, test results, and failure traces even when a test fails. Automatic Render deployment from `main` waits for the test workflow to succeed.
 
@@ -509,7 +555,7 @@ For local development only, point `DATABASE_URL` and `DIRECT_URL` at a disposabl
 
 ```bash
 npm ci
-npx prisma generate
+npm run db:generate
 npm run db:migrate
 npm run db:seed
 npm run typecheck

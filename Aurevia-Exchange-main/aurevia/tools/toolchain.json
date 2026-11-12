@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "safety": "Setup, Prisma Client generation, tests, and builds must use local/test resources only. Never provide production database URLs or production credentials to setup or local tests.",
+  "officialSources": {
+    "node": "https://nodejs.org/en/download",
+    "npmCi": "https://docs.npmjs.com/cli/commands/npm-ci",
+    "prisma": "https://www.prisma.io/docs/orm/prisma-client/setup-and-configuration/generating-prisma-client",
+    "playwright": "https://playwright.dev/docs/browsers",
+    "docker": "https://docs.docker.com/engine/install/",
+    "postgresql": "https://hub.docker.com/_/postgres",
+    "devcontainers": "https://containers.dev/implementors/json_reference/",
+    "render": "https://render.com/docs"
+  },
+  "tools": [
+    {
+      "Tool": "Node.js",
+      "Version": "22.19.0",
+      "Purpose": "Required JavaScript runtime; the exact version is pinned in .node-version and is inside the package.json engine range.",
+      "Installation": "Install Node.js 22.19.0 with nvm, fnm, or the root development-container configuration.",
+      "Verification": "node --version and npm run tools:verify",
+      "Required/Optional": "Required",
+      "Environment": "Local development, Codespaces, development container, CI"
+    },
+    {
+      "Tool": "npm",
+      "Version": "10.x bundled with Node.js 22.19.0",
+      "Purpose": "Installs the exact dependency graph from package-lock.json and runs project scripts.",
+      "Installation": "Use the npm version bundled with the pinned Node.js runtime; do not install npm globally.",
+      "Verification": "npm --version (npm run tools:verify checks the supported major)",
+      "Required/Optional": "Required",
+      "Environment": "Local development, Codespaces, development container, CI"
+    },
+    {
+      "Tool": "Next.js",
+      "Package": "next",
+      "Version": "16.4.3",
+      "Purpose": "Application framework and production build/runtime.",
+      "Installation": "npm ci",
+      "Verification": "npm ls next and npm run build",
+      "Required/Optional": "Required",
+      "Environment": "Local development, CI, production build"
+    },
+    {
+      "Tool": "TypeScript",
+      "Package": "typescript",
+      "Version": "5.7.2",
+      "Purpose": "Application type checking and typed configuration/tests.",
+      "Installation": "npm ci",
+      "Verification": "npm run typecheck",
+      "Required/Optional": "Required",
+      "Environment": "Local development, CI"
+    },
+    {
+      "Tool": "Prisma CLI",
+      "Package": "prisma",
+      "Version": "5.22.0",
+      "Purpose": "Schema tooling, isolated-test migrations, and Prisma Client generation.",
+      "Installation": "npm ci",
+      "Verification": "npm exec prisma -- --version",
+      "Required/Optional": "Required",
+      "Environment": "Local development, CI, production build (generation only)"
+    },
+    {
+      "Tool": "Prisma Client",
+      "Package": "@prisma/client",
+      "Version": "5.22.0",
+      "Purpose": "Application database access; must remain version-aligned with the Prisma CLI.",
+      "Installation": "npm ci followed by npm run db:generate",
+      "Verification": "npm run db:generate",
+      "Required/Optional": "Required",
+      "Environment": "Local development, CI, production build"
+    },
+    {
+      "Tool": "Vitest",
+      "Package": "vitest",
+      "Version": "4.1.12",
+      "Purpose": "Unit and API-route tests.",
+      "Installation": "npm ci",
+      "Verification": "npm test",
+      "Required/Optional": "Required",
+      "Environment": "Local development, CI"
+    },
+    {
+      "Tool": "Playwright",
+      "Package": "@playwright/test",
+      "Version": "1.64.1",
+      "Purpose": "Browser E2E, responsive, route, and accessibility verification.",
+      "Installation": "npm ci followed by npm run setup (Chromium); npm run browsers:install -- --all for optional Firefox/WebKit.",
+      "Verification": "npm run tools:verify and npm run test:e2e:isolated",
+      "Required/Optional": "Required for E2E; other browser engines optional",
+      "Environment": "Local development, Codespaces, development container, CI"
+    },
+    {
+      "Tool": "Playwright Chromium",
+      "Version": "Chromium revision bundled with the locked Playwright version",
+      "Purpose": "Default browser used by Aurevia E2E, browser smoke tests, and Lighthouse audits.",
+      "Installation": "npm run setup or npm run browsers:install",
+      "Verification": "npm run tools:verify",
+      "Required/Optional": "Required for browser tests",
+      "Environment": "Local development, Codespaces, development container, CI"
+    },
+    {
+      "Tool": "axe-core Playwright integration",
+      "Package": "@axe-core/playwright",
+      "Version": "4.14.0",
+      "Purpose": "Runs accessibility scans in the Playwright E2E suite.",
+      "Installation": "npm ci",
+      "Verification": "npm run test:e2e:accessibility",
+      "Required/Optional": "Required for accessibility E2E tests",
+      "Environment": "Local development, CI"
+    },
+    {
+      "Tool": "ESLint",
+      "Package": "eslint",
+      "Version": "10.14.0",
+      "Purpose": "Repository linting and JavaScript/TypeScript quality checks.",
+      "Installation": "npm ci",
+      "Verification": "npm run lint",
+      "Required/Optional": "Required",
+      "Environment": "Local development, CI"
+    },
+    {
+      "Tool": "Code formatter",
+      "Version": "No standalone formatter is configured",
+      "Purpose": "The project has no separate formatter dependency or formatter script; use the existing ESLint configuration and repository style.",
+      "Installation": "None",
+      "Verification": "npm run lint",
+      "Required/Optional": "No additional tool",
+      "Environment": "Local development, CI"
+    },
+    {
+      "Tool": "Tailwind CSS and PostCSS",
+      "Package": "tailwindcss",
+      "Version": "4.3.3",
+      "Purpose": "Application styling and CSS compilation.",
+      "Installation": "npm ci",
+      "Verification": "npm run build",
+      "Required/Optional": "Required",
+      "Environment": "Local development, CI, production build"
+    },
+    {
+      "Tool": "Lighthouse",
+      "Package": "lighthouse",
+      "Version": "13.6.0",
+      "Purpose": "Optional local performance/accessibility audit.",
+      "Installation": "npm ci",
+      "Verification": "npm run test:e2e:lighthouse",
+      "Required/Optional": "Optional audit",
+      "Environment": "Local development, CI when explicitly requested"
+    },
+    {
+      "Tool": "Git",
+      "Version": "2.x or newer",
+      "Purpose": "Clone-based workflows, version control, and CI checkout; not needed to unpack a ZIP.",
+      "Installation": "Use the operating system package manager or the GitHub-hosted CI runner.",
+      "Verification": "git --version",
+      "Required/Optional": "Required for clone and contribution workflows",
+      "Environment": "Local development, CI"
+    },
+    {
+      "Tool": "Docker Engine and Compose",
+      "Version": "Docker Engine 20.10+ and Docker Compose v2+",
+      "Purpose": "Runs the disposable loopback-only PostgreSQL database for isolated Playwright tests and optional local services.",
+      "Installation": "Install Docker Desktop or Docker Engine with the Compose v2 plugin from the official Docker source; Codespaces uses the configured Docker-outside-of-Docker feature.",
+      "Verification": "docker --version, docker compose version, and docker info",
+      "Required/Optional": "Optional generally; required for isolated E2E and Compose workflows",
+      "Environment": "Local development, Codespaces, development container, CI"
+    },
+    {
+      "Tool": "PostgreSQL",
+      "Version": "16 (postgres:16-alpine disposable E2E image)",
+      "Purpose": "Local/test database for Prisma and Playwright; psql and pg_isready are supplied inside the container.",
+      "Installation": "Docker pulls the official PostgreSQL image when npm run test:e2e:isolated starts.",
+      "Verification": "npm run test:e2e:isolated",
+      "Required/Optional": "Optional for application development; required for isolated E2E",
+      "Environment": "Local development, Codespaces, development container, CI"
+    },
+    {
+      "Tool": "GitHub Actions",
+      "Version": "ubuntu-latest; checkout/setup-node/upload-artifact actions v4",
+      "Purpose": "Runs repository CI using the pinned Node version, npm lockfile, tests, browsers, and build.",
+      "Installation": "Provided by GitHub-hosted runners; no local global installation.",
+      "Verification": "Review the Test workflow run.",
+      "Required/Optional": "Required for CI",
+      "Environment": "CI"
+    },
+    {
+      "Tool": "Render",
+      "Version": "Managed Node web service",
+      "Purpose": "Existing production hosting and deployment-hook integration; no Render CLI is used by this repository.",
+      "Installation": "Managed in the existing Render service and dashboard; do not replace or recreate it from development setup.",
+      "Verification": "Production operator checks deployment status in Render.",
+      "Required/Optional": "Production infrastructure",
+      "Environment": "Production"
+    }
+  ]
+}

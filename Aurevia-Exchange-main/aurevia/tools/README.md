@@ -1,5 +1,7 @@
-# Local browser tools
+# Aurevia toolchain
 
-Playwright-managed Chromium is downloaded to `tools/playwright/browsers/` by `npm run browsers:install`. This cache is machine-specific, ignored by Git, and is not included in production builds. Use `npm run tools:install` to reproduce the project dependency and browser setup, and `npm run tools:verify` to confirm the executable launches.
+[`toolchain.json`](./toolchain.json) is the authoritative inventory of required and optional tools, their versions, purposes, installation methods, verification commands, and environments.
 
-Playwright's Linux shared-library dependencies are installed on the host/container when `npm run tools:install -- --with-deps` is used; they are not stored in this directory.
+From the application directory, use `npm run setup` for the supported Node.js check, reproducible npm install, Prisma Client generation, Chromium installation, and tool verification. On Linux, setup installs Playwright system dependencies when root or passwordless sudo is available; otherwise follow the printed instruction and run `npm run browsers:install -- --with-deps` from an authorized account.
+
+The browser cache at `tools/playwright/browsers/` is machine-specific, ignored by Git, and excluded from production builds. Do not copy it between machines or commit it.
