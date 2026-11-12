@@ -108,15 +108,12 @@ export async function loginAs(page:Page,email:string,password:string,options:{ac
 
 export async function logout(page:Page){
 	const button=page.getByRole('button',{name:/^(?:Logout|Sign out)$/});
+	const accountMenu=page.getByRole('button',{name:'More account navigation'});
+	const menu=page.getByRole('button',{name:/More navigation|Close More navigation|Open admin menu|Close admin menu/});
+	await expect(button.or(accountMenu).or(menu)).toBeVisible();
 	if(!await button.isVisible()){
-		const accountMenu=page.getByRole('button',{name:'More account navigation'});
-		if(await accountMenu.isVisible()){
-			if(await accountMenu.getAttribute('aria-expanded')!=='true')await accountMenu.click();
-		}else{
-			const menu=page.getByRole('button',{name:/More navigation|Close More navigation|Open admin menu|Close admin menu/});
-			await expect(button.or(menu)).toBeVisible();
-			if(await menu.isVisible()&&await menu.getAttribute('aria-expanded')!=='true')await menu.click();
-		}
+		const navigationMenu=await accountMenu.isVisible()?accountMenu:menu;
+		if(await navigationMenu.getAttribute('aria-expanded')!=='true')await navigationMenu.click();
 	}
 	await expect(button).toBeVisible();
 	await button.click();

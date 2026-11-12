@@ -1,6 +1,7 @@
 import nextEnv from '@next/env';
 import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
+import {open,readFile,unlink} from 'node:fs/promises';
 import {createServer} from 'node:net';
 import {resolve} from 'node:path';
 
@@ -49,12 +50,39 @@ function releasePortReservation(server){
 	});
 }
 
+async function acquireBuildLock(){
+	const lockPath=resolve(projectRoot,'.next-e2e.lock');
+	const ownership=JSON.stringify({pid:process.pid,token:randomUUID()});
+	const startedAt=Date.now();
+	let reportedWait=false;
+	while(true){
+		try{
+			const lock=await open(lockPath,'wx',0o600);
+			try{await lock.writeFile(ownership)}finally{await lock.close()}
+			return async()=>{
+				const current=await readFile(lockPath,'utf8');
+				if(current!==ownership)throw new Error('Isolated E2E build lock ownership changed; refusing to remove it.');
+				await unlink(lockPath);
+			};
+		}catch(error){
+			if(error?.code!=='EEXIST')throw error;
+			if(Date.now()-startedAt>=120*60_000)throw new Error('Timed out waiting for the isolated E2E build lock. Inspect .next-e2e.lock and remove it only if its owner is no longer running.',{cause:error});
+			if(!reportedWait){
+				console.log('Another isolated E2E run is using the shared Next.js build output; waiting for it to finish.');
+				reportedWait=true;
+			}
+			await new Promise(resolve=>setTimeout(resolve,1000));
+		}
+	}
+}
+
 const containerName=`aurevia-e2e-${randomUUID()}`;
 const databaseName='aurevia_e2e';
 const databaseUser='aurevia_e2e';
 const portReservations=[];
 let containerStarted=false;
 let exitCode=1;
+let releaseBuildLock=null;
 
 try{
 	const started=await capture('docker',['run','--detach','--rm','--name',containerName,'--publish','127.0.0.1::5432','--env',`POSTGRES_DB=${databaseName}`,'--env',`POSTGRES_USER=${databaseUser}`,'--env','POSTGRES_HOST_AUTH_METHOD=trust','postgres:16-alpine']);
@@ -91,15 +119,20 @@ try{
 	const migrated=await run(process.execPath,[prismaCli,'migrate','deploy'],{env:environment});
 	if(migrated!==0)throw new Error('Prisma migrations failed on the isolated E2E database.');
 	console.log('Running Playwright against a disposable loopback-only PostgreSQL database.');
+	releaseBuildLock=await acquireBuildLock();
 	await Promise.all(portReservations.map(releasePortReservation));
 	exitCode=await run('npm',['run','test:e2e','--',...process.argv.slice(2)],{env:environment});
 }catch(error){
 	console.error(error instanceof Error?error.message:'Isolated E2E setup failed.');
 }finally{
-	await Promise.all(portReservations.map(releasePortReservation));
-	if(containerStarted){
-		const removed=await capture('docker',['rm','--force',containerName]);
-		if(removed.code!==0){console.error('Unable to remove the isolated E2E PostgreSQL container.');exitCode=1;}
+	try{
+		if(releaseBuildLock)await releaseBuildLock();
+	}finally{
+		await Promise.all(portReservations.map(releasePortReservation));
+		if(containerStarted){
+			const removed=await capture('docker',['rm','--force',containerName]);
+			if(removed.code!==0){console.error('Unable to remove the isolated E2E PostgreSQL container.');exitCode=1;}
+		}
 	}
 }
 process.exitCode=exitCode??1;

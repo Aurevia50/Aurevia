@@ -135,6 +135,10 @@ test('current terms acceptance is explicit and persists across refresh, login, a
 
 	await page.reload();
 	await expect(dialog).toBeHidden();
+	const refreshedSession=await page.request.get('/api/auth/session');
+	expect(refreshedSession.ok()).toBe(true);
+	expect(await refreshedSession.json()).toMatchObject({user:{email:user.email}});
+	await expect(page.getByRole('button',{name:'More account navigation'})).toBeVisible();
 	await logout(page);
 	await loginAs(page,user.email,user.password,{acceptTerms:false});
 	await expect(page.locator('.policy-consent-dialog')).toBeHidden();
@@ -179,6 +183,7 @@ test('updated terms require a separate acceptance and preserve the previous vers
 		expect(records.map(record=>record.version)).toEqual([previousVersion,currentVersion].sort());
 		expect(records.find(record=>record.version===previousVersion)?.acceptedAt).toEqual(previousAcceptedAt);
 	}finally{
+		await page.goto('about:blank');
 		await db.managedNotice.delete({where:{id:notice.id}});
 	}
 });
